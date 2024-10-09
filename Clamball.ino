@@ -52,11 +52,13 @@ void displayMessage(char message[], int textScrollSpeed) {
 void setup() {
   Serial.begin(115200);
   matrix.begin();
+  setupWifi();
 }
 
 void loop() {
-  static int counter = 0;
-  enableLED(counter, counter++);
-  matrix.loadFrame(boardState);
-  delay(100);
+  // static int counter = 0;
+  // enableLED(counter, counter++);
+  // matrix.loadFrame(boardState);
+  // delay(100);
+  loopWifi();
 }
