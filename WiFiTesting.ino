@@ -1,39 +1,15 @@
-/*
-  Web client
-
-  This sketch connects to a website (http://www.google.com)
-  using the WiFi module.
-
-  This example is written for a network using WPA encryption. For
-  WEP or WPA, change the WiFi.begin() call accordingly.
-
-  This example is written for a network using WPA encryption. For
-  WEP or WPA, change the WiFi.begin() call accordingly.
-
-
-  created 13 July 2010
-  by dlf (Metodo2 srl)
-  modified 31 May 2012
-  by Tom Igoe
-
-  Find the full UNO R4 WiFi Network documentation here:
-  https://docs.arduino.cc/tutorials/uno-r4-wifi/wifi-examples#wi-fi-web-client
- */
-
-
 #include "WiFiS3.h"
-#include "credentials.h" 
+#include "network_config.h" 
 
-///////please enter your sensitive data in the Secret tab/arduino_secrets.h
-char ssid[] = SECRET_SSID;        // your network SSID (name)
-char pass[] = SECRET_PASS;    // your network password (use for WPA, or use as key for WEP)
+char ssid[] = NETWORK_SSID;        // your network SSID (name)
+char pass[] = NETWORK_PASS;    // your network password (use for WPA, or use as key for WEP)
 int keyIndex = 0;            // your network key index number (needed only for WEP)
 
 int status = WL_IDLE_STATUS;
-// if you don't want to use DNS (and reduce your sketch size)
-// use the numeric IP instead of the name for the server:
-//IPAddress server(74,125,232,128);  // numeric IP for Google (no DNS)
-char server[] = "www.google.com";    // name address for Google (using DNS)
+
+// If running locally, replace this with active IP address; for macOS,
+// this can be retrieved from CLI via: ipconfig getifaddr en0
+IPAddress server("10.37.74.223");
 
 // Initialize the Ethernet client library
 // with the IP address and port of the server
@@ -45,9 +21,7 @@ void setupWifi() {
 /* -------------------------------------------------------------------------- */  
   //Initialize serial and wait for port to open:
   Serial.begin(9600);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
-  }
+  while (!Serial); // wait for serial port to connect. Needed for native USB port only
   
   // check for the WiFi module:
   if (WiFi.status() == WL_NO_MODULE) {
@@ -63,24 +37,34 @@ void setupWifi() {
   
   // attempt to connect to WiFi network:
   while (status != WL_CONNECTED) {
-    Serial.print("Attempting to connect to SSID: ");
-    Serial.println(ssid);
     // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
-    status = WiFi.begin(ssid, pass);
+    if(!NETWORK_OPEN) {
+      Serial.print("Attempting to connect to non-open SSID: ");
+      Serial.println(ssid);
+      status = WiFi.begin(ssid, pass);
+    } else {
+      Serial.print("Attempting to connect to open SSID: ");
+      Serial.println(ssid);
+      status = WiFi.begin(ssid);
+    }
      
     // wait 10 seconds for connection:
     delay(10000);
   }
   
-  printWifiStatus();
+  // printWifiStatus();
  
   Serial.println("\nStarting connection to server...");
   // if you get a connection, report back via serial:
-  if (client.connect(server, 80)) {
-    Serial.println("connected to server");
-    // Make a HTTP request:
-    client.println("GET /search?q=arduino HTTP/1.1");
-    client.println("Host: www.google.com");
+  if (client.connect(server, 6813)) {
+    Serial.println("Connected to server!");
+    // Make a HTTP request to no particular endpoint
+    client.println("GET / HTTP/1.1");
+    
+    // Make a request to the specific IP we care about
+    client.print("Host: ");
+    client.println(server);
+
     client.println("Connection: close");
     client.println();
   }
