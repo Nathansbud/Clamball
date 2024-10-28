@@ -70,10 +70,7 @@ void setupWifi() {
   }
 }
 
-/* just wrap the received data up to 80 columns in the serial print*/
-/* -------------------------------------------------------------------------- */
 void read_response() {
-/* -------------------------------------------------------------------------- */  
   uint32_t received_data_num = 0;
   while (client.available()) {
     /* actual data reception */
@@ -88,9 +85,7 @@ void read_response() {
   }  
 }
 
-/* -------------------------------------------------------------------------- */
 void loopWifi() {
-/* -------------------------------------------------------------------------- */  
   read_response();
 
   // if the server's disconnected, stop the client:
@@ -98,7 +93,7 @@ void loopWifi() {
     Serial.println();
     Serial.println("disconnecting from server.");
     client.stop();
-
+    
     // do nothing forevermore:
     while (true);
   }
