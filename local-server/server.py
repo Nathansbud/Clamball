@@ -8,10 +8,11 @@ from utils import *
 
 # If running local, we are testing requests/responses from our mock client; 
 # if not, we are processing incoming requests from Arduino
-LOCAL = True
-SURPRESS_SYSTEM_LOGS = True
-SURPRESS_SERVER_LOGS = True
+LOCAL = False
+SURPRESS_SYSTEM_LOGS = False
+SURPRESS_SERVER_LOGS = False
 
+ADDRESS = "localhost" if LOCAL else "192.168.86.30"
 PORT = 6813
 DIRECTORY = "."
 
@@ -20,7 +21,7 @@ NEXT_CABINET = 0
 ACTIVE_CABINETS = {}
 
 def request_url(endpoint):
-    return f"http://localhost:{PORT}/{endpoint}"
+    return f"http://{ADDRESS}:{PORT}/{endpoint}"
 
 def create_cabinet(cid):
     ACTIVE_CABINETS[cid] = Cabinet(cid)
@@ -182,9 +183,10 @@ class MainMenuChoices(Enum):
     GameSettings = "Game Settings"
     StartGame = "Start Game"
     DebugMsg = "Debug Message"
+    ResetAll = "Reset All"
 
 L_MainMenuChoices = list(MainMenuChoices)
-
+    
 def repl_loop():
     def poll(options):
         while True:
@@ -222,15 +224,17 @@ def repl_loop():
                 
                 for i in range(5):
                     response = requests.post(
-                        "http://localhost:6813/hole-update", 
+                        request_url("hole-update"),
                         data=f"{cabinet_idx}0{i}"
                     )
+            elif chosen == MainMenuChoices.ResetAll:
+                print("Clearing all cabinet data...")
+                ACTIVE_CABINETS.clear()
 
 if __name__ == "__main__":
     # launch a separate thread to manage the messages being passed around 
     message_thread = threading.Thread(target=launch_server)
     message_thread.start()
-
     repl_loop()
         
     

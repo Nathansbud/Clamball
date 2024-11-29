@@ -1,16 +1,37 @@
 #include "ArduinoGraphics.h"
-#include "Arduino_LED_Matrix.h"
-#include <HCSR04.h>
+#if defined(ARDUINO_UNOR4_WIFI) || defined(ARDUINO_ARCH_RENESAS)
+  #include "Arduino_LED_Matrix.h"
+#endif
 
 #define DEBUGGING true
 #define DEBUG_PRINT(A) (DEBUGGING ? Serial.print(A) : NULL)
 #define DEBUG_PRINTLN(A) (DEBUGGING ? Serial.println(A) : NULL)
 #define NUM_SENSORS 5
 
-enum DeviceState { DEBUG };
+enum DeviceState { 
+  ATTEMPTING,
+  WAITING_FOR_GAME,
+  INITIALIZE_GAME,
+  WAITING_FOR_BALL,
+  BALL_SENSED,
+  
+  UPDATE_COVERAGE,
+  SEND_UPDATE,
+  WAITING_FOR_MESSAGE,
 
-DeviceState activeState = DEBUG;
+  GAME_TIE,
+  GAME_WIN,
+  GAME_LOSS,
+
+  GAME_END,
+
+  DEBUG 
+};
+
+DeviceState activeState = ATTEMPTING;
+#if defined(ARDUINO_UNOR4_WIFI) || defined(ARDUINO_ARCH_RENESAS)
 ArduinoLEDMatrix matrix;
+#endif
 
 // This architecture assumes all sensors are being driven at the same time; there is no real reason not to do this,
 // since they should always be being checked at the same time, so using this wrapper
@@ -18,9 +39,6 @@ ArduinoLEDMatrix matrix;
 //   /* Trigger Pin */ 8,
 //   /* Echo Pins */ new int[NUM_SENSORS]{ 7, 12, 11, 10, 9 },
 //   /* Sensors */ NUM_SENSORS);
-
-HCSR04 m1(3, 4);
-HCSR04 m2(8, 9);
 
 float readings[5] = { 0, 0, 0, 0, 0 };
 
@@ -53,6 +71,7 @@ void enableLED(int row, int column) {
   boardState[newRow] |= (1 << (31 - newCol));
 }
 
+#if defined(ARDUINO_UNOR4_WIFI) || defined(ARDUINO_ARCH_RENESAS)
 // Display a message on the LED matrix using the ArduinoGraphics library,
 // per https://docs.arduino.cc/tutorials/uno-r4-wifi/led-matrix/#scrolling-text-example
 void displayMessage(char message[], int textScrollSpeed) {
@@ -65,31 +84,46 @@ void displayMessage(char message[], int textScrollSpeed) {
   matrix.endText(SCROLL_LEFT);
   matrix.endDraw();
 }
+#endif
 
 void setup() {
   Serial.begin(115200);
+  #if defined(ARDUINO_UNOR4_WIFI) || defined(ARDUINO_ARCH_RENESAS)
   matrix.begin();
+  #endif
   setupWifi();
 }
 
 void manageFSM() {
+  static int row = 0;
   switch(activeState) {
+    case ATTEMPTING:
+      setupServer();      
+      break;
+    case DEBUG:
+      if(row < 5) {
+        ballSensed(row, 0);
+      }
+      
+      row++;
+      delay(500);
+      break;
     default:
       activeState = DEBUG;
       break;
   }
 }
 
+void ballSensed(int row, int col) {
+  enableLED(row, col);
+  sendHoleUpdate(0, row, col); 
+  #if defined(ARDUINO_UNOR4_WIFI) || defined(ARDUINO_ARCH_RENESAS)
+  matrix.loadFrame(boardState);
+  #endif
+}
+
 void loop() {
-  float m1_r = m1.dist();
-  // float m2_r = m2.dist();
-
-  Serial.print("M1: ");
-  Serial.println(m1_r);
-  // Serial.print("M2: "); 
-  // Serial.println(m2_r);
-  delay(50);
-
+  manageFSM();
   /* Preliminary setup for simply reading all the sensors */
   // for (int i = 0; i < NUM_SENSORS; i++) {
   //   Serial.print(i);
