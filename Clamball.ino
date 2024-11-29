@@ -2,38 +2,43 @@
 #include "Arduino_LED_Matrix.h"
 #include <HCSR04.h>
 
-#define DEBUG true
-#define DEBUG_PRINT(A) (DEBUG ? Serial.print(A) : NULL)
-#define DEBUG_PRINTLN(A) (DEBUG ? Serial.println(A) : NULL)
+#define DEBUGGING true
+#define DEBUG_PRINT(A) (DEBUGGING ? Serial.print(A) : NULL)
+#define DEBUG_PRINTLN(A) (DEBUGGING ? Serial.println(A) : NULL)
 #define NUM_SENSORS 5
 
+enum DeviceState { DEBUG };
+
+DeviceState activeState = DEBUG;
 ArduinoLEDMatrix matrix;
 
-// This architecture assumes all sensors are being driven at the same time; there is no real reason not to do this, 
+// This architecture assumes all sensors are being driven at the same time; there is no real reason not to do this,
 // since they should always be being checked at the same time, so using this wrapper
-HCSR04 monitors(
-  /* Trigger Pin */ 8, 
-  /* Echo Pins */ new int[NUM_SENSORS]{7, 12, 11, 10, 9},
-  /* Sensors */ NUM_SENSORS
-);
+// HCSR04 monitors(
+//   /* Trigger Pin */ 8,
+//   /* Echo Pins */ new int[NUM_SENSORS]{ 7, 12, 11, 10, 9 },
+//   /* Sensors */ NUM_SENSORS);
 
-float readings[5] = {0, 0, 0, 0, 0};
+HCSR04 m1(3, 4);
+HCSR04 m2(8, 9);
+
+float readings[5] = { 0, 0, 0, 0, 0 };
 
 // Per https://docs.arduino.cc/tutorials/uno-r4-wifi/led-matrix/,
 // use a more concise memory representation
 uint32_t boardState[3] = {
-  0x000000000, 
+  0x000000000,
   0x000000000,
   0x000000000
 };
 
 void clearBoardState() {
-  for(int i = 0; i < 3; i++) boardState[i] = 0;
+  for (int i = 0; i < 3; i++) boardState[i] = 0;
 }
 
 // Toggle an LED on in the 8x12 matrix
 void enableLED(int row, int column) {
-  if(!(0 <= row && row < 8 && 0 <= column && column < 12)) {
+  if (!(0 <= row && row < 8 && 0 <= column && column < 12)) {
     DEBUG_PRINT("Failed to enable invalid LED: ");
     DEBUG_PRINT(row);
     DEBUG_PRINT(", ");
@@ -59,22 +64,43 @@ void displayMessage(char message[], int textScrollSpeed) {
   matrix.println(message);
   matrix.endText(SCROLL_LEFT);
   matrix.endDraw();
-} 
+}
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   matrix.begin();
-  // setupWifi();
+  setupWifi();
+}
+
+void manageFSM() {
+  switch(activeState) {
+    default:
+      activeState = DEBUG;
+      break;
+  }
 }
 
 void loop() {
+  float m1_r = m1.dist();
+  // float m2_r = m2.dist();
+
+  Serial.print("M1: ");
+  Serial.println(m1_r);
+  // Serial.print("M2: "); 
+  // Serial.println(m2_r);
+  delay(50);
+
   /* Preliminary setup for simply reading all the sensors */
-  for(int i = 0; i < NUM_SENSORS; i++) {
-    Serial.print(i);
-    Serial.print("] Sensor Reading: ");
-    Serial.println(monitors.dist(i)); 
-  }
+  // for (int i = 0; i < NUM_SENSORS; i++) {
+  //   Serial.print(i);
+  //   Serial.print("] Sensor Reading: ");
+  //   Serial.println(monitors.dist(i));
+  // }
+
+  // manageFSM();
+  // loopWifi();
   
+
   // static int counter = 0;
   // enableLED(counter, counter++);
   // delay(100);
@@ -96,5 +122,4 @@ void loop() {
   // }
 
   // matrix.loadFrame(boardState);
-  delay(10);
 }
