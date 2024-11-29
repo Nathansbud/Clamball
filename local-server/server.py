@@ -9,11 +9,18 @@ from utils import *
 # If running local, we are testing requests/responses from our mock client; 
 # if not, we are processing incoming requests from Arduino
 LOCAL = True
+SURPRESS_SYSTEM_LOGS = True
+SURPRESS_SERVER_LOGS = True
 
 PORT = 6813
 DIRECTORY = "."
 
+CABINET_LOCK = threading.Lock()
+NEXT_CABINET = 0
 ACTIVE_CABINETS = {}
+
+def request_url(endpoint):
+    return f"http://localhost:{PORT}/{endpoint}"
 
 def create_cabinet(cid):
     ACTIVE_CABINETS[cid] = Cabinet(cid)
@@ -25,7 +32,7 @@ class GamePattern(Enum):
 class Cabinet:
     def __init__(self, cabinet_id, holes=None):
         self.cabinet_id = cabinet_id
-        self.holes = [False for _ in range(5)] * 5 if not holes else holes
+        self.holes = [[False for _ in range(5)] for _ in range(5)] if not holes else holes
 
         # TODO: hold some connection metadata
         self.connection = None
@@ -33,16 +40,62 @@ class Cabinet:
     def update_hole(self, row, col, state=True):
         self.holes[row][col] = state
     
-    def did_win(self, pattern = GamePattern.LINE):
+    def did_win(self, row, col, pattern = GamePattern.LINE):
+        if pattern == GamePattern.LINE:
+            # Per RO-K, we check:
+                # All holes of a given row index
+                # All holes of a given column index
+                # All holes having equal row and column index (i.e. the downward-sloping central diagonal)
+                # All holes with row + column index = 4 (i.e. the upward-sloping central diagonal)
+
+            # Check each column in this row
+            for c in range(5):
+                if not self.holes[row][c]: break
+            else:
+                return True
+
+            # Check each row in this column
+            for r in range(5):
+                if not self.holes[r][col]: break
+            else:
+                return True
+            
+            # Check each hole in the downward diagonal,
+            # (0, 0), (1, 1), ..., (4, 4)
+            if row == col: 
+                for dd in range(5):
+                    if not self.holes[dd][dd]: break
+                else:
+                    return True
+
+            # Check each hole in the downward diagonal,
+            # (0, 4), (1, 3), ..., (4, 0)
+            if row + col == 4:
+                for ud in range(5):
+                    if not self.holes[ud][4 - ud]: break
+                else:
+                    return True
+                
+        elif pattern == GamePattern.BLACKOUT:
+            pass    
+    
         return False
     
 class RequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
+    
+    def log_message(self, format: str, *args) -> None:
+        if SURPRESS_SYSTEM_LOGS:
+            return         
+        
+        return super().log_message(format, *args)
 
     def do_GET(self):
         # Print details of the GET request to the console
-        print(f"Received GET request: Path = {self.path}, Headers = {self.headers}")
+        if not SURPRESS_SERVER_LOGS:
+            print(green(f"Received GET request: Path = {self.path}, Headers = {self.headers}"))
+        
         if self.path == "/register-cabinet":
             self.register_cabinet()
         else:
@@ -52,7 +105,9 @@ class RequestHandler(SimpleHTTPRequestHandler):
             # super().do_GET()
     
     def do_POST(self):
-        print(f"Received POST request: Path = {self.path}, Headers = {self.headers}")
+        if not SURPRESS_SERVER_LOGS:
+            print(blue(f"Received POST request: Path = {self.path}, Headers = {self.headers}"))
+
         if self.path == "/hole-update":
             self.handle_hole_update()
         else:
@@ -70,7 +125,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
         # self.send_header("Connection", "keep-alive")
 
         self.end_headers()
-        if c_len > 0: 
+        if c_len > 0:
             self.wfile.write(c)
 
     def fallback(self):
@@ -78,27 +133,40 @@ class RequestHandler(SimpleHTTPRequestHandler):
         self.respond(404, "ya done goofed shawty")
     
     def register_cabinet(self):
-        # TODO: Change this message to register a cabinet ID (maybe hardcode this?)
-        create_cabinet(0)
-
-        self.respond(200, "swaggggg")
+        # Acquire a lock on the cabinet index variable, in case two cabinets request at the same time;
+        # I don't know if this lock is strictly necessary, but..........just in case
+        CABINET_LOCK.acquire()
+        
+        global NEXT_CABINET
+        
+        active = NEXT_CABINET
+        create_cabinet(NEXT_CABINET)
+        
+        NEXT_CABINET += 1
+        
+        CABINET_LOCK.release()
+        
+        # Message starting with R tells a cabinet that it should send all future messages 
+        # with the digit sent
+        self.respond(200, f"R{active}")
 
     def handle_hole_update(self):
         msg_length = self.headers.get("Content-Length", "") or 0
         if msg_length != 3:
             body = self.rfile.read(int(msg_length))
-            cabinet, row, col = list(body.decode())
-            
+            cabinet, row, col = (int(v) for v in list(body.decode()))
+
             if cabinet not in ACTIVE_CABINETS:
                 self.respond(401, "Invalid cabinet")
             else:
                 ACTIVE_CABINETS[cabinet].update_hole(row, col)
-                
-                # TODO: Update w active pattern
-                if ACTIVE_CABINETS[cabinet].did_win():
-                    self.respond(200, "0")
+                if ACTIVE_CABINETS[cabinet].did_win(row, col):
+                    # TODO: Some logic to send a winning message to all cabinets
+                    # for c in ACTIVE_CABINETS.values():
+                    #   c.connection.send()
+                    self.respond(200, f"W{cabinet}")
                 else:
-                    self.respond(200, "ACK")
+                    self.respond(200, "A")
         else:
             self.respond(400)
 
@@ -110,12 +178,12 @@ def launch_server():
     with HTTPServer(("0.0.0.0", PORT), RequestHandler) as httpd:
         httpd.serve_forever()
 
-class RawMainMenuChoices(Enum):
+class MainMenuChoices(Enum):
     GameSettings = "Game Settings"
     StartGame = "Start Game"
     DebugMsg = "Debug Message"
 
-MainMenuChoices = list(RawMainMenuChoices)
+L_MainMenuChoices = list(MainMenuChoices)
 
 def repl_loop():
     def poll(options):
@@ -137,20 +205,27 @@ def repl_loop():
                 continue        
 
     while True:
-        response = poll([m.value for m in MainMenuChoices])
-        if response:
-            chosen = MainMenuChoices[response]            
-            if chosen == RawMainMenuChoices.GameSettings:
+        choice = poll([m.value for m in L_MainMenuChoices])
+        if choice != None:
+            chosen = L_MainMenuChoices[choice]            
+            if chosen == MainMenuChoices.GameSettings:
                 print("swag")
-            elif chosen == RawMainMenuChoices.StartGame:
+            elif chosen == MainMenuChoices.StartGame:
                 print("swaaaag")
-            elif chosen == RawMainMenuChoices.DebugMsg:
-                _ = requests.post(
-                    "http://localhost:6813/hole-update", 
-                    data="abc",
-                    timeout=1
-                )
-            
+            elif chosen == MainMenuChoices.DebugMsg:
+                response = requests.get(request_url("register-cabinet"))
+                if response.text.startswith("R"):
+                    cabinet_idx = int(response.text[1])
+                else:
+                    print("idk yet todo")
+                    cabinet_idx = 9
+                
+                for i in range(5):
+                    response = requests.post(
+                        "http://localhost:6813/hole-update", 
+                        data=f"{cabinet_idx}0{i}"
+                    )
+
 if __name__ == "__main__":
     # launch a separate thread to manage the messages being passed around 
     message_thread = threading.Thread(target=launch_server)
