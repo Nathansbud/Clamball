@@ -1,43 +1,32 @@
-#include "WiFiS3.h"
 #include "network_config.h" 
 
-char ssid[] = NETWORK_SSID;        // your network SSID (name)
-char pass[] = NETWORK_PASS;    // your network password (use for WPA, or use as key for WEP)
-int keyIndex = 0;            // your network key index number (needed only for WEP)
+#if defined(ARDUINO_UNOR4_WIFI) || defined(ARDUINO_ARCH_RENESAS)
+  #include "WiFiS3.h"
+#else
+  #include <SPI.h>
+  #include <WiFiNINA.h>
+#endif 
+  
+// If running locally, replace this with active IP address; for macOS,
+// this can be retrieved from CLI via: ipconfig getifaddr en0
+IPAddress server(192, 168, 86, 30);
+
+char ssid[] = NETWORK_SSID;
+char pass[] = NETWORK_PASS;
+int keyIndex = 0;
 
 int status = WL_IDLE_STATUS;
 
-// If running locally, replace this with active IP address; for macOS,
-// this can be retrieved from CLI via: ipconfig getifaddr en0
-IPAddress server("10.37.74.223");
-
-// Initialize the Ethernet client library
-// with the IP address and port of the server
-// that you want to connect to (port 80 is default for HTTP):
 WiFiClient client;
 
-/* -------------------------------------------------------------------------- */
 void setupWifi() {
-/* -------------------------------------------------------------------------- */  
-  //Initialize serial and wait for port to open:
-  Serial.begin(9600);
-  while (!Serial); // wait for serial port to connect. Needed for native USB port only
-  
-  // check for the WiFi module:
   if (WiFi.status() == WL_NO_MODULE) {
     Serial.println("Communication with WiFi module failed!");
     // don't continue
     while (true);
   }
   
-  String fv = WiFi.firmwareVersion();
-  if (fv < WIFI_FIRMWARE_LATEST_VERSION) {
-    Serial.println("Please upgrade the firmware");
-  }
-  
-  // attempt to connect to WiFi network:
   while (status != WL_CONNECTED) {
-    // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
     if(!NETWORK_OPEN) {
       Serial.print("Attempting to connect to non-open SSID: ");
       Serial.println(ssid);
@@ -48,25 +37,32 @@ void setupWifi() {
       status = WiFi.begin(ssid);
     }
      
-    // wait 10 seconds for connection:
+    // wait 2.5 seconds for re-connect attempt:
     delay(10000);
   }
-  
-  // printWifiStatus();
- 
+}
+
+void setupServer() {
   Serial.println("\nStarting connection to server...");
-  // if you get a connection, report back via serial:
-  if (client.connect(server, 6813)) {
+  // if you get a connection, report back via serial:)
+  
+  int response = client.connect(server, 6813);
+  if (response == 1) {
     Serial.println("Connected to server!");
+    
     // Make a HTTP request to no particular endpoint
-    client.println("GET / HTTP/1.1");
+    client.println("GET /register-cabinet HTTP/1.1");
     
     // Make a request to the specific IP we care about
     client.print("Host: ");
     client.println(server);
 
-    client.println("Connection: close");
+    client.println("Connection: keep-alive");
     client.println();
+  } else {
+    Serial.print("Failed to connect to server, code: ");
+    Serial.print(response);
+
   }
 }
 
@@ -77,12 +73,26 @@ void read_response() {
     char c = client.read();
     /* print data to serial port */
     Serial.print(c);
-    /* wrap data to 80 columns*/
-    received_data_num++;
-    if(received_data_num % 80 == 0) { 
-      Serial.println();
-    }
   }  
+  Serial.println();
+}
+
+void sendHoleUpdate(uint8_t cabinetID, uint8_t x, uint8_t y) {
+  client.println("POST /hole-update HTTP/1.1");
+  
+  // Make a request to the specific IP we care about
+  client.print("Host: ");
+  client.println(server);
+
+  // Each of cabinet ID, x, y are 1-digit numbers, meaning we can transmit a 3-digit number as our message,
+  // of form [ID][X][Y]
+  client.println("Content-Length: 3");
+  client.println("Connection: keep-alive");
+  client.println();
+  client.print(cabinetID);
+  client.print(x);
+  client.print(y);
+  client.println();
 }
 
 void loopWifi() {
@@ -94,9 +104,22 @@ void loopWifi() {
     Serial.println("disconnecting from server.");
     client.stop();
     
-    // do nothing forevermore:
-    while (true);
+    // Attempt to reconnect to server...
+    setupServer();
+  } else {
+    sendHoleUpdate(0, 1, 2);
   }
+
+  Serial.println("Looping wifi...");
+  delay(1000);
+}
+
+void sendHeartbeat() {
+  client.println("GET /debug-heartbeat HTTP/1.1");
+  client.print("Host: ");
+  client.println(server);
+  client.println("Connection: keep-alive");
+  client.println();
 }
 
 // Credit to https://forum.arduino.cc/t/finding-the-mac-address-of-the-arduino-uno-r4/1308027/
