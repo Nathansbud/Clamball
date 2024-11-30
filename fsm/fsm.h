@@ -22,6 +22,7 @@ typedef enum {
   sCHECK_FOR_MESSAGE = 3,
   sCHECK_FOR_INPUT = 4,
   sSEND_MESSAGE = 5,
+  sHANDLE_MESSAGE = 6,
 } manState;
 
 bool cab1_connect = false;
@@ -32,3 +33,12 @@ int led_matrix2[5][5] = {0};
 
 int c1_inp2[2] = NULL // tuple of row, col where ball fell
 int c2_inp[2] = NULL
+
+bool start_game = false; 
+
+// used in the case of a tie...
+// long cab1_win = NULL;
+// long cab2_win = NULL; 
+
+int game_winner = -1; 
+bool repl_input = false;
