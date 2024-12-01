@@ -71,10 +71,23 @@ void setupServer() {
     Serial.print(" - ");
     Serial.println(manager.connected());
   }
+
+  delay(1000);
 }
 
-void checkShouldStart() {
-  // TODO
+ResponseType checkShouldStart() {
+  if(manager.connect(server, port) == 1) {
+    client.get("/request-start");
+    
+    int statusCode = client.responseStatusCode();
+    if(statusCode == 200 && client.responseBody() == "Y") { 
+      return SUCCESS;
+    }
+
+    return FAILURE;
+  }
+  
+  return ERROR;
 }
 
 void sendHoleUpdate(uint8_t cabinetID, uint8_t x, uint8_t y) {
@@ -96,7 +109,9 @@ void sendHoleUpdate(uint8_t cabinetID, uint8_t x, uint8_t y) {
 }
 
 void loopWifi() {
-  read_response();
+  Serial.println("Swag swag swag");
+  return;
+
 
   // if the server's disconnected, stop the client:
   if (!manager.connected()) {
