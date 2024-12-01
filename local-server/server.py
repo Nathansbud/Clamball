@@ -20,6 +20,8 @@ CABINET_LOCK = threading.Lock()
 NEXT_CABINET = 0
 ACTIVE_CABINETS = {}
 
+GAME_STARTED = False
+
 def request_url(endpoint):
     return f"http://{ADDRESS}:{PORT}/{endpoint}"
 
@@ -98,7 +100,9 @@ class RequestHandler(SimpleHTTPRequestHandler):
             print(green(f"Received GET request: Path = {self.path}, Headers = {self.headers}"))
         
         if self.path == "/register-cabinet":
-            self.register_cabinet()
+            self.handle_register_cabinet()
+        elif self.path == "/request-start":
+            self.handle_request_start()
         else:
             self.fallback()
             
@@ -120,20 +124,20 @@ class RequestHandler(SimpleHTTPRequestHandler):
             
         self.send_response(status)
         self.send_header("Content-Type", "text/plain")
-        self.send_header("Content-Length", c_len)
+        
+        if c_len: self.send_header("Content-Length", c_len)
         
         # Arduino cannot construct a new http connection every time it needs to process a response
         # self.send_header("Connection", "keep-alive")
 
         self.end_headers()
-        if c_len > 0:
-            self.wfile.write(c)
+        if c_len: self.wfile.write(c)
 
     def fallback(self):
         print("Attempting to handle fallback...")
         self.respond(404, "ya done goofed shawty")
     
-    def register_cabinet(self):
+    def handle_register_cabinet(self):
         # Acquire a lock on the cabinet index variable, in case two cabinets request at the same time;
         # I don't know if this lock is strictly necessary, but..........just in case
         CABINET_LOCK.acquire()
@@ -150,6 +154,13 @@ class RequestHandler(SimpleHTTPRequestHandler):
         # Message starting with R tells a cabinet that it should send all future messages 
         # with the digit sent
         self.respond(200, f"R{active}")
+
+    def handle_request_start(self):
+        # Would prefer this to be a 401, but 401 seems to break things for the wee 'duino...
+        # not sure why, but it causes a hang. Very odd.
+        if not GAME_STARTED: self.respond(200, "N")
+        else:
+            self.respond(200, "Y")
 
     def handle_hole_update(self):
         msg_length = self.headers.get("Content-Length", "") or 0
@@ -189,6 +200,8 @@ class MainMenuChoices(Enum):
 L_MainMenuChoices = list(MainMenuChoices)
     
 def repl_loop():
+    global GAME_STARTED, NEXT_CABINET
+
     def poll(options):
         while True:
             for i, c in enumerate(options, start=1):
@@ -214,7 +227,7 @@ def repl_loop():
             if chosen == MainMenuChoices.GameSettings:
                 print("swag")
             elif chosen == MainMenuChoices.StartGame:
-                print("swaaaag")
+                GAME_STARTED = True
             elif chosen == MainMenuChoices.DebugMsg:
                 response = requests.get(request_url("register-cabinet"))
                 if response.text.startswith("R"):
@@ -232,8 +245,6 @@ def repl_loop():
                 CABINET_LOCK.acquire()
                 
                 ACTIVE_CABINETS.clear()
-                
-                global NEXT_CABINET
                 NEXT_CABINET = 0
                 
                 CABINET_LOCK.release()

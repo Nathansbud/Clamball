@@ -8,6 +8,12 @@
 #define DEBUG_PRINTLN(A) (DEBUGGING ? Serial.println(A) : NULL)
 #define NUM_SENSORS 5
 
+enum ResponseType {
+  SUCCESS = 1,
+  FAILURE = 0,
+  ERROR = -1
+};
+
 enum DeviceState { 
   ATTEMPTING,
   WAITING_FOR_GAME,
@@ -115,15 +121,28 @@ void manageFSM() {
       // This is a bit of an odd model, but it's a pain to have the Arduino acting as client AND server,
       // without some sort of threading model that might necessitate an OS; as such, we use polling even in contexts where we'd
       // ideally have the server send a request to the client
-      if(checkShouldStart()) {
-        Serial.println("Let the games...begin!");
-        activeState = INITIALIZE_GAME;
-      } else {
-        Serial.println("Waiting for game...");
-        activeState = WAITING_FOR_GAME;
+      switch(checkShouldStart()) {
+        case SUCCESS:
+          Serial.println("Let the games...begin!");
+          activeState = INITIALIZE_GAME;
+          break;
+        case FAILURE:
+          Serial.println("Waiting for game...");
+          activeState = WAITING_FOR_GAME;
+          break;
+        case ERROR:
+        default:
+          break;
       }
       
       delay(1000);
+      break;
+    case INITIALIZE_GAME:
+      clearBoardState();
+      matrix.loadFrame(boardState);
+      activeState = WAITING_FOR_BALL;
+      break;
+    case WAITING_FOR_BALL:
       break;
     case DEBUG:
       if(row < 5) {
