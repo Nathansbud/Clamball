@@ -8,7 +8,7 @@ from utils import *
 
 # If running local, we are testing requests/responses from our mock client; 
 # if not, we are processing incoming requests from Arduino
-LOCAL = False
+LOCAL = True
 SURPRESS_SYSTEM_LOGS = False
 SURPRESS_SERVER_LOGS = False
 
@@ -154,8 +154,9 @@ class RequestHandler(SimpleHTTPRequestHandler):
     def handle_hole_update(self):
         msg_length = self.headers.get("Content-Length", "") or 0
         if msg_length != 3:
-            body = self.rfile.read(int(msg_length))
-            cabinet, row, col = (int(v) for v in list(body.decode()))
+            body = self.rfile.read(int(msg_length)).decode()
+            _cabinet, _idx = body.split("-")
+            cabinet, row, col = (int(v) for v in (_cabinet, _idx[0], _idx[1]))
 
             if cabinet not in ACTIVE_CABINETS:
                 self.respond(401, "Invalid cabinet")
@@ -225,11 +226,17 @@ def repl_loop():
                 for i in range(5):
                     response = requests.post(
                         request_url("hole-update"),
-                        data=f"{cabinet_idx}0{i}"
+                        data=f"{cabinet_idx}-0{i}"
                     )
             elif chosen == MainMenuChoices.ResetAll:
-                print("Clearing all cabinet data...")
+                CABINET_LOCK.acquire()
+                
                 ACTIVE_CABINETS.clear()
+                
+                global NEXT_CABINET
+                NEXT_CABINET = 0
+                
+                CABINET_LOCK.release()
 
 if __name__ == "__main__":
     # launch a separate thread to manage the messages being passed around 
