@@ -168,6 +168,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
             body = self.rfile.read(int(msg_length)).decode()
             _cabinet, _idx = body.split("-")
             cabinet, row, col = (int(v) for v in (_cabinet, _idx[0], _idx[1]))
+            print(f"Received: {cabinet} @ ({row}, {col})")
 
             if cabinet not in ACTIVE_CABINETS:
                 self.respond(401, "Invalid cabinet")
@@ -179,7 +180,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
                     #   c.connection.send()
                     self.respond(200, f"W{cabinet}")
                 else:
-                    self.respond(200, "A")
+                    self.respond(200, "N")
         else:
             self.respond(400)
 
