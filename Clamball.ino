@@ -33,6 +33,9 @@ DeviceState activeState = ATTEMPTING;
 ArduinoLEDMatrix matrix;
 #endif
 
+// We need to assign our cabinet number via WiFi request
+int CABINET_NUMBER = -1;
+
 // This architecture assumes all sensors are being driven at the same time; there is no real reason not to do this,
 // since they should always be being checked at the same time, so using this wrapper
 // HCSR04 monitors(
@@ -99,6 +102,28 @@ void manageFSM() {
   switch(activeState) {
     case ATTEMPTING:
       setupServer();      
+
+      // If our server setup did not provide our cabinet with an ID to use, we self-loop back to keep trying again; 
+      // the server might not be started, or our Arduino might not actually be connected to WiFi yet
+      if(CABINET_NUMBER == -1) { // Transition: ATTEMPTING -> ATTEMPTING
+        activeState = ATTEMPTING;
+      } else {
+        activeState = WAITING_FOR_GAME;
+      }
+      break;
+    case WAITING_FOR_GAME:
+      // This is a bit of an odd model, but it's a pain to have the Arduino acting as client AND server,
+      // without some sort of threading model that might necessitate an OS; as such, we use polling even in contexts where we'd
+      // ideally have the server send a request to the client
+      if(checkShouldStart()) {
+        Serial.println("Let the games...begin!");
+        activeState = INITIALIZE_GAME;
+      } else {
+        Serial.println("Waiting for game...");
+        activeState = WAITING_FOR_GAME;
+      }
+      
+      delay(1000);
       break;
     case DEBUG:
       if(row < 5) {

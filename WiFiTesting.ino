@@ -1,3 +1,4 @@
+#include <ArduinoHttpClient.h>
 #include "network_config.h" 
 
 #if defined(ARDUINO_UNOR4_WIFI) || defined(ARDUINO_ARCH_RENESAS)
@@ -9,7 +10,8 @@
   
 // If running locally, replace this with active IP address; for macOS,
 // this can be retrieved from CLI via: ipconfig getifaddr en0
-IPAddress server(192, 168, 86, 30);
+IPAddress server(10, 37, 117, 156);
+uint16_t port = 6813;
 
 char ssid[] = NETWORK_SSID;
 char pass[] = NETWORK_PASS;
@@ -17,7 +19,8 @@ int keyIndex = 0;
 
 int status = WL_IDLE_STATUS;
 
-WiFiClient client;
+WiFiClient manager;
+HttpClient client = HttpClient(manager, server, port);
 
 void setupWifi() {
   if (WiFi.status() == WL_NO_MODULE) {
@@ -38,7 +41,7 @@ void setupWifi() {
     }
      
     // wait 2.5 seconds for re-connect attempt:
-    delay(10000);
+    delay(2500);
   }
 }
 
@@ -46,63 +49,60 @@ void setupServer() {
   Serial.println("\nStarting connection to server...");
   // if you get a connection, report back via serial:)
   
-  int response = client.connect(server, 6813);
+  int response = manager.connect(server, port);
   if (response == 1) {
     Serial.println("Connected to server!");
     
-    // Make a HTTP request to no particular endpoint
-    client.println("GET /register-cabinet HTTP/1.1");
+    client.get("/register-cabinet");
     
-    // Make a request to the specific IP we care about
-    client.print("Host: ");
-    client.println(server);
+    int statusCode = client.responseStatusCode();
+    if(statusCode == 200) {
+      int cabinetResponse = client.responseBody().substring(1).toInt();
+      
+      Serial.print("Assigning cabinet: ");
+      Serial.println(cabinetResponse);
 
-    client.println("Connection: keep-alive");
-    client.println();
+      // Update cabinet number to the assigned one
+      CABINET_NUMBER = cabinetResponse;
+    }
   } else {
     Serial.print("Failed to connect to server, code: ");
     Serial.print(response);
-
+    Serial.print(" - ");
+    Serial.println(manager.connected());
   }
 }
 
-void read_response() {
-  uint32_t received_data_num = 0;
-  while (client.available()) {
-    /* actual data reception */
-    char c = client.read();
-    /* print data to serial port */
-    Serial.print(c);
-  }  
-  Serial.println();
+void checkShouldStart() {
+  // TODO
 }
 
 void sendHoleUpdate(uint8_t cabinetID, uint8_t x, uint8_t y) {
-  client.println("POST /hole-update HTTP/1.1");
+  manager.println("POST /hole-update HTTP/1.1");
   
   // Make a request to the specific IP we care about
-  client.print("Host: ");
-  client.println(server);
+  manager.print("Host: ");
+  manager.println(server);
 
   // Each of cabinet ID, x, y are 1-digit numbers, meaning we can transmit a 3-digit number as our message,
   // of form [ID][X][Y]
-  client.println("Content-Length: 3");
-  client.println("Connection: keep-alive");
-  client.println();
-  client.print(cabinetID);
-  client.print(x);
-  client.print(y);
-  client.println();
+  manager.println("Content-Length: 3");
+  manager.println("Connection: keep-alive");
+  manager.println();
+  manager.print(cabinetID);
+  manager.print(x);
+  manager.print(y);
+  manager.println();
 }
 
 void loopWifi() {
   read_response();
 
   // if the server's disconnected, stop the client:
-  if (!client.connected()) {
+  if (!manager.connected()) {
     Serial.println();
     Serial.println("disconnecting from server.");
-    client.stop();
+    manager.stop();
     
     // Attempt to reconnect to server...
     setupServer();
@@ -110,16 +110,16 @@ void loopWifi() {
     sendHoleUpdate(0, 1, 2);
   }
 
-  Serial.println("Looping wifi...");
+  Serial.println("Looping manager...");
   delay(1000);
 }
 
 void sendHeartbeat() {
-  client.println("GET /debug-heartbeat HTTP/1.1");
-  client.print("Host: ");
-  client.println(server);
-  client.println("Connection: keep-alive");
-  client.println();
+  manager.println("GET /debug-heartbeat HTTP/1.1");
+  manager.print("Host: ");
+  manager.println(server);
+  manager.println("Connection: keep-alive");
+  manager.println();
 }
 
 // Credit to https://forum.arduino.cc/t/finding-the-mac-address-of-the-arduino-uno-r4/1308027/
