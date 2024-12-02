@@ -23,15 +23,12 @@ enum DeviceState {
   
   UPDATE_COVERAGE,
   SEND_UPDATE,
-  WAITING_FOR_MESSAGE,
 
   GAME_TIE,
   GAME_WIN,
   GAME_LOSS,
 
-  GAME_END,
-
-  DEBUG 
+  GAME_END
 };
 
 DeviceState activeState = ATTEMPTING;
@@ -49,7 +46,9 @@ int CABINET_NUMBER = -1;
 //   /* Echo Pins */ new int[NUM_SENSORS]{ 7, 12, 11, 10, 9 },
 //   /* Sensors */ NUM_SENSORS);
 
-float readings[5] = { 0, 0, 0, 0, 0 };
+const int THRESHOLD_COUNT = 3;
+int activeHole = -1;
+int sensedCount = 0;
 
 // Per https://docs.arduino.cc/tutorials/uno-r4-wifi/led-matrix/,
 // use a more concise memory representation
@@ -61,6 +60,16 @@ uint32_t boardState[3] = {
 
 void clearBoardState() {
   for (int i = 0; i < 3; i++) boardState[i] = 0;
+}
+
+void activateHole(int holeIdx) {
+  if(0 <= holeIdx && holeIdx < 25) { 
+    uint8_t rowIdx = holeIdx / 5;
+    uint8_t colIdx = holeIdx % 5;
+    enableLED(rowIdx, colIdx);
+  }
+
+  matrix.loadFrame(boardState);
 }
 
 // Toggle an LED on in the 8x12 matrix
@@ -103,8 +112,22 @@ void setup() {
   setupWifi();
 }
 
+DeviceState checkWinnerTransition(int response) {
+  if(response >= 0) {
+    if(response == CABINET_NUMBER) {
+      return GAME_WIN; 
+    } else {
+      return GAME_LOSS;
+    }        
+  } else if(response == -1) {
+    return WAITING_FOR_BALL;
+  } else if(response == -2) {
+    return ATTEMPTING;
+  }
+}
+
 void manageFSM() {
-  static int row = 0;
+  static int candidateHole = -1;
   switch(activeState) {
     case ATTEMPTING:
       setupServer();      
@@ -143,61 +166,94 @@ void manageFSM() {
       activeState = WAITING_FOR_BALL;
       break;
     case WAITING_FOR_BALL:
+      candidateHole = pollSensors();
+      if(candidateHole != -1) {
+        Serial.print("Sensed ball in hole: ");
+        Serial.println(candidateHole);
+
+        activeState = BALL_SENSED;        
+      } else {
+        Serial.println("Sensed no ball! Sending heartbeat...");
+        // TODO-Mikayla+Lucy: Do we want to clear out the active hole if any sensor reading fails?
+        activeHole = -1;
+        sensedCount = 0;
+        
+        // Heartbeat serves the purpose of checking if a winner has been decided by the server,
+        // as we need to poll for it; response is one of: -2 (server error), -1 (no winner), 0, ..., 99 (winning ID)
+        int response = sendHeartbeat();
+        activeState = checkWinnerTransition(response);
+      }
       break;
-    case DEBUG:
-      if(row < 5) {
-        ballSensed(row, 0);
+    case BALL_SENSED:
+      // If we have already seen this hole, increase the sensedCount;
+      // otherwise, we have seen a new hole, so should check that one instead
+      if(candidateHole == activeHole) {
+        sensedCount += 1;
+      } else {
+        activeHole = candidateHole;
+        sensedCount = 1;
       }
       
-      row++;
-      delay(500);
+      if(sensedCount >= THRESHOLD_COUNT) {
+        activeState = UPDATE_COVERAGE;
+      } else {
+        activeState = WAITING_FOR_BALL;
+      }
+      break;
+    case UPDATE_COVERAGE:
+      activateHole(activeHole);
+      activeState = SEND_UPDATE;
+      break;
+    case SEND_UPDATE: {
+      int response = sendHoleUpdate(CABINET_NUMBER, activeHole);
+      
+      Serial.print("Got response after sending hole: ");
+      Serial.println(response);
+
+
+      // Reset hole metadata!
+      activeHole = -1;
+      sensedCount = 0;
+
+      // This state transition is guaranteed to leave SEND_UPDATE;
+      // it takes either to WAITING_FOR_HOLE (no winner), GAME_WIN/GAME_LOSS (winner), or ATTEMPTING (server error) 
+      activeState = checkWinnerTransition(response);
+      Serial.print("Transitioning to: ");
+      Serial.println(activeState);
+      break;
+    }
+    case GAME_WIN:
+      displayMessage("winner, winner, chicken dinner!", 150);
+      break;
+    case GAME_LOSS:
+      displayMessage("loser, loser, lemon snoozer!", 150);
+      break;
+    case GAME_TIE:
+      displayMessage("tie, tie, no need to cry!", 150);
+      break;
+    case GAME_END:  
       break;
     default:
-      activeState = DEBUG;
+      activeState = ATTEMPTING;
       break;
   }
 }
 
-void ballSensed(int row, int col) {
-  enableLED(row, col);
-  sendHoleUpdate(0, row, col); 
-  #if defined(ARDUINO_UNOR4_WIFI) || defined(ARDUINO_ARCH_RENESAS)
-  matrix.loadFrame(boardState);
-  #endif
+int pollSensors() {
+  // TODO-Mikayla+Lucy: Do the sensor logic here! For now, mocking out that it always slowly-increasing holes
+  static int returnedHole = 0;
+  static int counter = 0;
+
+  if(counter < 5) {
+    counter++;
+  } else {
+    counter = 0;
+    returnedHole += 1;
+  }
+  
+  return returnedHole;
 }
 
 void loop() {
   manageFSM();
-  /* Preliminary setup for simply reading all the sensors */
-  // for (int i = 0; i < NUM_SENSORS; i++) {
-  //   Serial.print(i);
-  //   Serial.print("] Sensor Reading: ");
-  //   Serial.println(monitors.dist(i));
-  // }
-
-  // manageFSM();
-  // loopWifi();
-  
-
-  // static int counter = 0;
-  // enableLED(counter, counter++);
-  // delay(100);
-  // loopWifi();
-  // float dist = monitor.dist();
-  // if(dist > 4 && dist < 8.5) {
-  //   Serial.println("Hole 1!!!");
-  //   enableLED(0, 0);
-  // } else if(dist >= 8.5 && dist < 13) {
-  //   Serial.println("Hole 2!!!");
-  //   enableLED(2, 0);
-  // } else if(dist >= 13 && dist < 17.5) {
-  //   Serial.println("Hole 3!!!");
-  //   enableLED(4, 0);
-  // } else if(dist < 18) {
-  //   Serial.print("something close but not in the hole bounds: ");
-  //   Serial.println(dist);
-  //   enableLED(6, 0);
-  // }
-
-  // matrix.loadFrame(boardState);
 }

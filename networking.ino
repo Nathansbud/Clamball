@@ -66,10 +66,10 @@ void setupServer() {
       CABINET_NUMBER = cabinetResponse;
     }
   } else {
-    Serial.print("Failed to connect to server, code: ");
-    Serial.print(response);
-    Serial.print(" - ");
-    Serial.println(manager.connected());
+    Serial.print("Failed to connect to server on port ");
+    Serial.print(port);
+    Serial.print(",  code: ");
+    Serial.println(response);
   }
 
   delay(1000);
@@ -90,51 +90,46 @@ ResponseType checkShouldStart() {
   return ERROR;
 }
 
-void sendHoleUpdate(uint8_t cabinetID, uint8_t x, uint8_t y) {
-  manager.println("POST /hole-update HTTP/1.1");
-  
-  // Make a request to the specific IP we care about
-  manager.print("Host: ");
-  manager.println(server);
-
-  // Each of cabinet ID, x, y are 1-digit numbers, meaning we can transmit a 3-digit number as our message,
-  // of form [ID][X][Y]
-  manager.println("Content-Length: 3");
-  manager.println("Connection: keep-alive");
-  manager.println();
-  manager.print(cabinetID);
-  manager.print(x);
-  manager.print(y);
-  manager.println();
+int sendHoleUpdate(uint8_t cabinetID, uint8_t index) {
+  return sendHoleUpdate(cabinetID, index / 5, index % 5);
 }
 
-void loopWifi() {
-  Serial.println("Swag swag swag");
-  return;
-
-
-  // if the server's disconnected, stop the client:
-  if (!manager.connected()) {
-    Serial.println();
-    Serial.println("disconnecting from server.");
-    manager.stop();
+int sendHoleUpdate(uint8_t cabinetID, uint8_t row, uint8_t col) {
+  if(manager.connect(server, port) == 1) {
+    Serial.print("Sending hole update: ");
+    Serial.print(row);
+    Serial.print(", ");
+    Serial.println(col);
     
-    // Attempt to reconnect to server...
-    setupServer();
-  } else {
-    sendHoleUpdate(0, 1, 2);
+    // Using a 6-character buffer: msg is at MOST 2 digits, - is one, and row/col are between 0 and 5, and null terminator is the final byte;
+    // was previously using 5, but think this isn't accounting for the null terminator
+    char msg[6];
+    snprintf(msg, 6, "%d-%d%d", cabinetID, row, col);
+
+    client.post("/hole-update", "text/plain", msg);
+
+    return checkWinner(client.responseBody());
   }
 
-  Serial.println("Looping manager...");
-  delay(1000);
+  return -2;
 }
 
-void sendHeartbeat() {
-  manager.println("GET /debug-heartbeat HTTP/1.1");
-  manager.print("Host: ");
-  manager.println(server);
-  manager.println("Connection: keep-alive");
-  manager.println();
+int checkWinner(String content) {
+  if(content == "N") {
+    return -1;
+  } else {
+    return content.substring(1).toInt();
+  }
+}
+
+int sendHeartbeat() {
+  if(manager.connect(server, port) == 1) { 
+    client.get("/heartbeat");
+    
+    return checkWinner(client.responseBody());
+  }
+
+  return -2;
 }
 
 // Credit to https://forum.arduino.cc/t/finding-the-mac-address-of-the-arduino-uno-r4/1308027/
@@ -152,9 +147,8 @@ void printMacAddress(byte mac[]) {
   Serial.println();
 }
 
-/* -------------------------------------------------------------------------- */
+// Modified from basic WiFi example!
 void printWifiStatus() {
-/* -------------------------------------------------------------------------- */  
   byte mac[6];
   Serial.print("MAC Address: ");
   printMacAddress(WiFi.macAddress(mac));
