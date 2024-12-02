@@ -225,8 +225,11 @@ void manageFSM() {
     case GAME_WIN:
     case GAME_LOSS:
     case GAME_TIE:
-    case GAME_END:
-      
+      Serial.println("Game end; TODO");
+      delay(500);
+      break;
+    case GAME_END:  
+      break;
     default:
       activeState = ATTEMPTING;
       break;
