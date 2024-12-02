@@ -223,10 +223,13 @@ void manageFSM() {
       break;
     }
     case GAME_WIN:
+      displayMessage("winner, winner, chicken dinner!", 150);
+      break;
     case GAME_LOSS:
+      displayMessage("loser, loser, lemon snoozer!", 150);
+      break;
     case GAME_TIE:
-      Serial.println("Game end; TODO");
-      delay(500);
+      displayMessage("tie, tie, no need to cry!", 150);
       break;
     case GAME_END:  
       break;

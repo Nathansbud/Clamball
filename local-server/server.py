@@ -186,7 +186,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
                 WIN_LOCK.acquire()
                 
                 if WINNER is not None:
-                    self.respond(200, f"W{cabinet}")
+                    self.respond(200, f"W{WINNER}")
                 elif ACTIVE_CABINETS[cabinet].did_win(row, col):
                     WINNER = cabinet
                     self.respond(200, f"W{cabinet}")
