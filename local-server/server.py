@@ -20,7 +20,10 @@ CABINET_LOCK = threading.Lock()
 NEXT_CABINET = 0
 ACTIVE_CABINETS = {}
 
+WIN_LOCK = threading.Lock()
 GAME_STARTED = False
+WINNER = None
+
 
 def request_url(endpoint):
     return f"http://{ADDRESS}:{PORT}/{endpoint}"
@@ -163,33 +166,47 @@ class RequestHandler(SimpleHTTPRequestHandler):
             self.respond(200, "Y")
 
     def handle_hole_update(self):
+        global WINNER
+
         msg_length = self.headers.get("Content-Length", "") or 0
         if msg_length != 3:
             body = self.rfile.read(int(msg_length)).decode()
             _cabinet, _idx = body.split("-")
+            
+            print(f"Raw: {body}")
+
             cabinet, row, col = (int(v) for v in (_cabinet, _idx[0], _idx[1]))
             print(f"Received: {cabinet} @ ({row}, {col})")
 
+
             if cabinet not in ACTIVE_CABINETS:
                 self.respond(401, "Invalid cabinet")
-            else:
+            else:                
                 ACTIVE_CABINETS[cabinet].update_hole(row, col)
-                if ACTIVE_CABINETS[cabinet].did_win(row, col):
-                    # TODO: Some logic to send a winning message to all cabinets
-                    # for c in ACTIVE_CABINETS.values():
-                    #   c.connection.send()
+                WIN_LOCK.acquire()
+                
+                if WINNER is not None:
+                    self.respond(200, f"W{cabinet}")
+                elif ACTIVE_CABINETS[cabinet].did_win(row, col):
+                    WINNER = cabinet
                     self.respond(200, f"W{cabinet}")
                 else:
                     self.respond(200, "N")
+
+                WIN_LOCK.release()
+                
         else:
             self.respond(400)
 
-    def debug_heartbeat(self):
-        self.respond(200, "okayyyy heartbeat")
+    def sendHeartbeat(self):
+        if WINNER is not None:
+            self.respond(200, f"W{WINNER}")
+        else:
+            self.respond(200, "N")
 
-def launch_server():
+def launch_server(port):
     # This is bad practice, as it accepts all inbound connections; for testing, do this though!
-    with HTTPServer(("0.0.0.0", PORT), RequestHandler) as httpd:
+    with HTTPServer(("0.0.0.0", port), RequestHandler) as httpd:
         httpd.serve_forever()
 
 class MainMenuChoices(Enum):
@@ -251,9 +268,14 @@ def repl_loop():
                 CABINET_LOCK.release()
 
 if __name__ == "__main__":
-    # launch a separate thread to manage the messages being passed around 
-    message_thread = threading.Thread(target=launch_server)
-    message_thread.start()
+    # launch a separate thread to manage the messages being passed around
+    c1_thread = threading.Thread(target=lambda: launch_server(port=6813))
+    c1_thread.start()
+
+    # c2_thread = threading.Thread(target=lambda: launch_server(port=6814))
+    # c2_thread.start()
+    
+    
     repl_loop()
         
     

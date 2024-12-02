@@ -23,15 +23,12 @@ enum DeviceState {
   
   UPDATE_COVERAGE,
   SEND_UPDATE,
-  WAITING_FOR_MESSAGE,
 
   GAME_TIE,
   GAME_WIN,
   GAME_LOSS,
 
-  GAME_END,
-
-  DEBUG 
+  GAME_END
 };
 
 DeviceState activeState = ATTEMPTING;
@@ -225,9 +222,13 @@ void manageFSM() {
       Serial.println(activeState);
       break;
     }
-    case DEBUG:
+    case GAME_WIN:
+    case GAME_LOSS:
+    case GAME_TIE:
+    case GAME_END:
+      
     default:
-      activeState = DEBUG;
+      activeState = ATTEMPTING;
       break;
   }
 }
@@ -247,46 +248,6 @@ int pollSensors() {
   return returnedHole;
 }
 
-void ballSensed(int row, int col) {
-  enableLED(row, col);
-  sendHoleUpdate(0, row, col); 
-  #if defined(ARDUINO_UNOR4_WIFI) || defined(ARDUINO_ARCH_RENESAS)
-  matrix.loadFrame(boardState);
-  #endif
-}
-
 void loop() {
   manageFSM();
-  /* Preliminary setup for simply reading all the sensors */
-  // for (int i = 0; i < NUM_SENSORS; i++) {
-  //   Serial.print(i);
-  //   Serial.print("] Sensor Reading: ");
-  //   Serial.println(monitors.dist(i));
-  // }
-
-  // manageFSM();
-  // loopWifi();
-  
-
-  // static int counter = 0;
-  // enableLED(counter, counter++);
-  // delay(100);
-  // loopWifi();
-  // float dist = monitor.dist();
-  // if(dist > 4 && dist < 8.5) {
-  //   Serial.println("Hole 1!!!");
-  //   enableLED(0, 0);
-  // } else if(dist >= 8.5 && dist < 13) {
-  //   Serial.println("Hole 2!!!");
-  //   enableLED(2, 0);
-  // } else if(dist >= 13 && dist < 17.5) {
-  //   Serial.println("Hole 3!!!");
-  //   enableLED(4, 0);
-  // } else if(dist < 18) {
-  //   Serial.print("something close but not in the hole bounds: ");
-  //   Serial.println(dist);
-  //   enableLED(6, 0);
-  // }
-
-  // matrix.loadFrame(boardState);
 }

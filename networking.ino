@@ -66,10 +66,10 @@ void setupServer() {
       CABINET_NUMBER = cabinetResponse;
     }
   } else {
-    Serial.print("Failed to connect to server, code: ");
-    Serial.print(response);
-    Serial.print(" - ");
-    Serial.println(manager.connected());
+    Serial.print("Failed to connect to server on port ");
+    Serial.print(port);
+    Serial.print(",  code: ");
+    Serial.println(response);
   }
 
   delay(1000);
@@ -91,7 +91,7 @@ ResponseType checkShouldStart() {
 }
 
 int sendHoleUpdate(uint8_t cabinetID, uint8_t index) {
-  return sendHoleUpdate(cabinetID, index % 5, index / 5);
+  return sendHoleUpdate(cabinetID, index / 5, index % 5);
 }
 
 int sendHoleUpdate(uint8_t cabinetID, uint8_t row, uint8_t col) {
@@ -101,9 +101,10 @@ int sendHoleUpdate(uint8_t cabinetID, uint8_t row, uint8_t col) {
     Serial.print(", ");
     Serial.println(col);
     
-    // Using a 5-character buffer: msg is at MOST 2 digits, - is one, and row/col are between 0 and 5
-    char msg[5];
-    snprintf(msg, 5, "%d-%d%d", cabinetID, row, col);
+    // Using a 6-character buffer: msg is at MOST 2 digits, - is one, and row/col are between 0 and 5, and null terminator is the final byte;
+    // was previously using 5, but think this isn't accounting for the null terminator
+    char msg[6];
+    snprintf(msg, 6, "%d-%d%d", cabinetID, row, col);
 
     client.post("/hole-update", "text/plain", msg);
 
@@ -146,9 +147,8 @@ void printMacAddress(byte mac[]) {
   Serial.println();
 }
 
-/* -------------------------------------------------------------------------- */
+// Modified from basic WiFi example!
 void printWifiStatus() {
-/* -------------------------------------------------------------------------- */  
   byte mac[6];
   Serial.print("MAC Address: ");
   printMacAddress(WiFi.macAddress(mac));
