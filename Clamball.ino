@@ -213,7 +213,7 @@ void manageFSM() {
       // } else {
       //   activeState = WAITING_FOR_BALL;
       // }
-      // break;
+      break;
     case UPDATE_COVERAGE:
       activateHole(activeHole);
       activeState = SEND_UPDATE;
