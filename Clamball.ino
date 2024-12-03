@@ -3,10 +3,18 @@
   #include "Arduino_LED_Matrix.h"
 #endif
 
+#include "Clamball.h"
+
 #define DEBUGGING true
 #define DEBUG_PRINT(A) (DEBUGGING ? Serial.print(A) : NULL)
 #define DEBUG_PRINTLN(A) (DEBUGGING ? Serial.println(A) : NULL)
 #define NUM_SENSORS 5
+
+#define sensor0 A0
+#define sensor1 A1
+#define sensor2 A2
+#define sensor3 A3
+#define sensor4 A4
 
 enum ResponseType {
   SUCCESS = 1,
@@ -181,25 +189,31 @@ void manageFSM() {
         // Heartbeat serves the purpose of checking if a winner has been decided by the server,
         // as we need to poll for it; response is one of: -2 (server error), -1 (no winner), 0, ..., 99 (winning ID)
         int response = sendHeartbeat();
+        Serial.print("Response in no ball: ");
+        Serial.println(response);
         activeState = checkWinnerTransition(response);
       }
       break;
     case BALL_SENSED:
       // If we have already seen this hole, increase the sensedCount;
       // otherwise, we have seen a new hole, so should check that one instead
-      if(candidateHole == activeHole) {
-        sensedCount += 1;
-      } else {
-        activeHole = candidateHole;
-        sensedCount = 1;
-      }
+
+      // NOT SURE HERE...rn just have it always updating 
+      activeHole = candidateHole;
+      activeState = UPDATE_COVERAGE;
+      // if(candidateHole == activeHole) {
+      //   sensedCount += 1;
+      // } else {
+      //   activeHole = candidateHole;
+      //   sensedCount = 1;
+      // }
       
-      if(sensedCount >= THRESHOLD_COUNT) {
-        activeState = UPDATE_COVERAGE;
-      } else {
-        activeState = WAITING_FOR_BALL;
-      }
-      break;
+      // if(sensedCount >= THRESHOLD_COUNT) {
+      //   activeState = UPDATE_COVERAGE;
+      // } else {
+      //   activeState = WAITING_FOR_BALL;
+      // }
+      // break;
     case UPDATE_COVERAGE:
       activateHole(activeHole);
       activeState = SEND_UPDATE;
@@ -239,19 +253,196 @@ void manageFSM() {
   }
 }
 
-int pollSensors() {
-  // TODO-Mikayla+Lucy: Do the sensor logic here! For now, mocking out that it always slowly-increasing holes
-  static int returnedHole = 0;
-  static int counter = 0;
+int sensor0_hole() {
+  float volts0 = analogRead(sensor0)*0.0048828125;
+  // float distance = 13*pow(volts, -1); // worked out from datasheet graph
+  float distance0 = 13*pow(volts0, -1);
+  // Serial.println(distance0);
+  // test ret;
 
-  if(counter < 5) {
-    counter++;
-  } else {
-    counter = 0;
-    returnedHole += 1;
+  if(distance0 >= 3 && distance0 < 5.5){
+    // ret.hole = 0;
+    // ret.dist = distance0;
+    return 0;
   }
+  else if(distance0 >= 5.5 && distance0  < 9){
+    // ret.hole = 1;
+    // ret.dist = distance0;
+    return 1;
+  }
+  else if(distance0 >= 9 && distance0 < 12){
+    // ret.hole = 2;
+    // ret.dist = distance0;
+    return 2;
+  }
+  else if(distance0 >= 12 && distance0 < 14){
+    // Serial.println(distance0);
+    // ret.hole = 3;
+    // ret.dist = distance0;
+    return 3;
+  }
+  else if(distance0 >= 14 && distance0 < 17){
+    // ret.hole = 4;
+    // ret.dist = distance0;
+    return 4;
+  }
+  else{
+    // ret.hole =33 ;
+    // ret.dist = distance0;
+    return 33; 
+  }
+}
+
+int sensor1_hole() {
+  float volts0 = analogRead(sensor1)*0.0048828125;
+  // float distance = 13*pow(volts, -1); // worked out from datasheet graph
+  float distance0 = 13*pow(volts0, -1);
+
+  if(distance0 >= 3 && distance0 < 5.5){
+    return 0;
+  }
+  else if(distance0 >= 5.5 && distance0  < 9){
+    return 1;
+  }
+  else if(distance0 >= 9 && distance0 < 11.5){
+    return 2;
+  }
+  else if(distance0 >= 11.5 && distance0 < 14.5){ // struggling with these two
+    // Serial.println(distance0);
+    return 3;
+  }
+  else if(distance0 >= 14.5 && distance0 < 18){ // struggling with these two
+    // Serial.println(distance0);
+    return 4;
+  }
+  else{
+    return 33;
+  }
+}
+
+int sensor2_hole() {
+  float volts0 = analogRead(sensor2)*0.0048828125;
+  // float distance = 13*pow(volts, -1); // worked out from datasheet graph
+  float distance0 = 13*pow(volts0, -1);
+
+  if(distance0 >= 3 && distance0 < 5.5){
+    return 0;
+  }
+  else if(distance0 >= 5.5 && distance0  < 9){
+    return 1;
+  }
+  else if(distance0 >= 9 && distance0 < 12){
+    return 2;
+  }
+  else if(distance0 >= 12 && distance0 < 15){
+    // Serial.println(distance0);
+    return 3;
+  }
+  else if(distance0 >= 15 && distance0 < 18.5){
+    // Serial.println(distance0);
+    return 4;
+  }
+  else{
+    // Serial.println(distance0);
+    return 33;
+  }
+}
+
+int sensor3_hole() {
+  float volts0 = analogRead(sensor3)*0.0048828125;
+  // float distance = 13*pow(volts, -1); // worked out from datasheet graph
+  float distance0 = 13*pow(volts0, -1);
+
+  if(distance0 >= 3 && distance0 < 5.5){
+    return 0;
+  }
+  else if(distance0 >= 5.5 && distance0  < 9){
+    return 1;
+  }
+  else if(distance0 >= 9 && distance0 < 12){
+    return 2;
+  }
+  else if(distance0 >= 12 && distance0 < 15){
+    return 3;
+  }
+  else if(distance0 >= 15 && distance0 < 19){
+    return 4;
+  }
+  else{
+    return 33; 
+  }
+}
+
+int sensor4_hole() {
+  float volts0 = analogRead(sensor4)*0.0048828125;
+  // float distance = 13*pow(volts, -1); // worked out from datasheet graph
+  float distance0 = 13*pow(volts0, -1);
+  // Serial.println(distance0);
+
+  if(distance0 >= 3 && distance0 < 5.5){
+    return 0;
+  }
+  else if(distance0 >= 5.5 && distance0  < 9){
+    return 1;
+  }
+  else if(distance0 >= 9 && distance0 < 12){
+    // Serial.println(distance0);
+    return 2;
+  }
+  else if(distance0 >= 12 && distance0 < 15){
+    return 3;
+  }
+  else if(distance0 >= 15 && distance0 < 20){ // not sure about this one 
+    return 4;
+  }
+  else{
+    return 33; 
+  }
+}
+
+int argmin(int arr[]) {
+  int minIndex = 0;
+  for (int i = 1; i < 5; i++) {
+    if (arr[i] < arr[minIndex]) {
+      minIndex = i;
+    }
+  }
+  return minIndex;
+}
+
+// int hole_found() {
+//   int readings[] = {sensor0_hole(), sensor1_hole(), sensor2_hole(), sensor3_hole(), sensor4_hole()};
+//   int col = argmin(readings);
+//   int row = readings[col];
+//   rowcol output;
+//   output.row = row;
+//   output.col = col;
+//   return output;
+// }
+
+int pollSensors() {
+  int readings[] = {sensor0_hole(), sensor1_hole(), sensor2_hole(), sensor3_hole(), sensor4_hole()};
+  int col = argmin(readings);
+  int row = readings[col];
+  if (row == 33) {
+    return -1;
+  }
+  int out = col*5+row;
+  delay(50);
+  return out;
+  // Serial.println();
+  // TODO-Mikayla+Lucy: Do the sensor logic here! For now, mocking out that it always slowly-increasing holes
+  // static int returnedHole = 0;
+  // static int counter = 0;
+
+  // if(counter < 5) {
+  //   counter++;
+  // } else {
+  //   counter = 0;
+  //   returnedHole += 1;
+  // }
   
-  return returnedHole;
+  // return returnedHole;
 }
 
 void loop() {
