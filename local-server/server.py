@@ -106,6 +106,8 @@ class RequestHandler(SimpleHTTPRequestHandler):
             self.handle_register_cabinet()
         elif self.path == "/request-start":
             self.handle_request_start()
+        elif self.path == "/heartbeat":
+            self.sendHeartbeat()
         else:
             self.fallback()
             

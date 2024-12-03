@@ -54,7 +54,7 @@ int CABINET_NUMBER = -1;
 //   /* Echo Pins */ new int[NUM_SENSORS]{ 7, 12, 11, 10, 9 },
 //   /* Sensors */ NUM_SENSORS);
 
-const int THRESHOLD_COUNT = 3;
+const int THRESHOLD_COUNT = 10;
 int activeHole = -1;
 int sensedCount = 0;
 
@@ -176,15 +176,20 @@ void manageFSM() {
     case WAITING_FOR_BALL:
       candidateHole = pollSensors();
       if(candidateHole != -1) {
-        Serial.print("Sensed ball in hole: ");
-        Serial.println(candidateHole);
-
+        if(candidateHole < 2) {
+          Serial.print("Sensed ball in hole: ");
+          Serial.println(candidateHole);
+        }
+        
         activeState = BALL_SENSED;        
       } else {
         Serial.println("Sensed no ball! Sending heartbeat...");
         // TODO-Mikayla+Lucy: Do we want to clear out the active hole if any sensor reading fails?
         activeHole = -1;
         sensedCount = 0;
+        
+        // Ignore heartbeat for now
+        break;
         
         // Heartbeat serves the purpose of checking if a winner has been decided by the server,
         // as we need to poll for it; response is one of: -2 (server error), -1 (no winner), 0, ..., 99 (winning ID)
@@ -197,22 +202,20 @@ void manageFSM() {
     case BALL_SENSED:
       // If we have already seen this hole, increase the sensedCount;
       // otherwise, we have seen a new hole, so should check that one instead
-
-      // NOT SURE HERE...rn just have it always updating 
-      activeHole = candidateHole;
-      activeState = UPDATE_COVERAGE;
-      // if(candidateHole == activeHole) {
-      //   sensedCount += 1;
-      // } else {
-      //   activeHole = candidateHole;
-      //   sensedCount = 1;
-      // }
+      // activeHole = candidateHole;
+      // activeState = UPDATE_COVERAGE;
+      if(candidateHole == activeHole) {
+        sensedCount += 1;
+      } else {
+        activeHole = candidateHole;
+        sensedCount = 1;
+      }
       
-      // if(sensedCount >= THRESHOLD_COUNT) {
-      //   activeState = UPDATE_COVERAGE;
-      // } else {
-      //   activeState = WAITING_FOR_BALL;
-      // }
+      if(sensedCount >= THRESHOLD_COUNT) {
+        activeState = UPDATE_COVERAGE;
+      } else {
+        activeState = WAITING_FOR_BALL;
+      }
       break;
     case UPDATE_COVERAGE:
       activateHole(activeHole);
@@ -254,42 +257,46 @@ void manageFSM() {
 }
 
 int sensor0_hole() {
-  float volts0 = analogRead(sensor0)*0.0048828125;
+  float volts0 = analogRead(sensor0) * 0.0048828125;
   // float distance = 13*pow(volts, -1); // worked out from datasheet graph
-  float distance0 = 13*pow(volts0, -1);
+  float distance0 = 13 * pow(volts0, -1);
   // Serial.println(distance0);
   // test ret;
 
-  if(distance0 >= 3 && distance0 < 5.5){
+  //4.7 to 5.81 is our average calibrated range
+  if(distance0 >= 2 && distance0 < 6.82) {
     // ret.hole = 0;
     // ret.dist = distance0;
     return 0;
-  }
-  else if(distance0 >= 5.5 && distance0  < 9){
+  } // 7.83 to 8.72
+  else if(distance0 >= 6.82 && distance0  < 9.5){
     // ret.hole = 1;
     // ret.dist = distance0;
     return 1;
   }
-  else if(distance0 >= 9 && distance0 < 12){
+
+  // 10.27 to 11
+  else if(distance0 >= 9.5 && distance0 < 11.7){
     // ret.hole = 2;
     // ret.dist = distance0;
     return 2;
   }
-  else if(distance0 >= 12 && distance0 < 14){
+  
+  // 12.40 to 13.08
+  else if(distance0 >= 11.7 && distance0 < 13.7){
     // Serial.println(distance0);
     // ret.hole = 3;
     // ret.dist = distance0;
     return 3;
   }
-  else if(distance0 >= 14 && distance0 < 17){
+
+  // actual 14.33 to 14.88
+  else if(distance0 >= 13.7 && distance0 < 15){
     // ret.hole = 4;
     // ret.dist = distance0;
     return 4;
-  }
-  else{
-    // ret.hole =33 ;
-    // ret.dist = distance0;
-    return 33; 
+  } else { 
+    return -1; 
   }
 }
 
@@ -351,24 +358,19 @@ int sensor2_hole() {
 int sensor3_hole() {
   float volts0 = analogRead(sensor3)*0.0048828125;
   // float distance = 13*pow(volts, -1); // worked out from datasheet graph
-  float distance0 = 13*pow(volts0, -1);
+  float distance0 = 13 * pow(volts0, -1);
 
   if(distance0 >= 3 && distance0 < 5.5){
     return 0;
-  }
-  else if(distance0 >= 5.5 && distance0  < 9){
+  } else if(distance0 >= 5.5 && distance0  < 9){
     return 1;
-  }
-  else if(distance0 >= 9 && distance0 < 12){
+  } else if(distance0 >= 9 && distance0 < 12){
     return 2;
-  }
-  else if(distance0 >= 12 && distance0 < 15){
+  } else if(distance0 >= 12 && distance0 < 15){
     return 3;
-  }
-  else if(distance0 >= 15 && distance0 < 19){
+  } else if(distance0 >= 15 && distance0 < 19){
     return 4;
-  }
-  else{
+  } else {
     return 33; 
   }
 }
@@ -402,7 +404,7 @@ int sensor4_hole() {
 
 int argmin(int arr[]) {
   int minIndex = 0;
-  for (int i = 1; i < 5; i++) {
+  for (int i = 1; i < 3; i++) {
     if (arr[i] < arr[minIndex]) {
       minIndex = i;
     }
@@ -420,16 +422,30 @@ int argmin(int arr[]) {
 //   return output;
 // }
 
+
+
 int pollSensors() {
-  int readings[] = {sensor0_hole(), sensor1_hole(), sensor2_hole(), sensor3_hole(), sensor4_hole()};
-  int col = argmin(readings);
-  int row = readings[col];
-  if (row == 33) {
-    return -1;
-  }
-  int out = col*5+row;
-  delay(50);
-  return out;
+  return sensor0_hole();
+
+  // int readings[] = {
+  //   sensor0_hole(), 
+  //   sensor1_hole(), 
+  //   sensor2_hole()
+  //   // sensor3_hole(), 
+  //   // sensor4_hole()
+  // };
+  
+  // int col = argmin(readings);
+  // int row = readings[col];
+  
+  // if (row == 33) {
+  //   return -1;
+  // }
+
+  // int out = col * 5 + row;
+  
+  // delay(50);
+  // return out;
   // Serial.println();
   // TODO-Mikayla+Lucy: Do the sensor logic here! For now, mocking out that it always slowly-increasing holes
   // static int returnedHole = 0;
@@ -445,6 +461,29 @@ int pollSensors() {
   // return returnedHole;
 }
 
+void calibrate() {
+  int thresh = 100000;
+  int value = 0;
+  float counter = 0;
+  while(value < thresh) {
+    float volts0 = analogRead(sensor0) * 0.0048828125;
+      // float distance = 13*pow(volts, -1); // worked out from datasheet graph
+    float distance0 = 13 * pow(volts0, -1);
+      // Serial.println(distance0);
+      
+    counter += distance0;
+    value++;
+  }
+
+  // counter /= thresh;
+  //Serial.println(numreadings);
+  Serial.print("OUR READING WAS: ");
+  Serial.println(counter / thresh);
+  delay(1);
+  
+}
+
 void loop() {
+  // calibrate();
   manageFSM();
 }

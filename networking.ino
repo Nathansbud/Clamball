@@ -10,7 +10,7 @@
   
 // If running locally, replace this with active IP address; for macOS,
 // this can be retrieved from CLI via: ipconfig getifaddr en0
-IPAddress server(10, 37, 117, 156);
+IPAddress server(172, 18, 141, 216);
 uint16_t port = 6813;
 
 char ssid[] = NETWORK_SSID;
