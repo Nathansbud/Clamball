@@ -220,7 +220,7 @@ class MainMenuChoices(Enum):
 L_MainMenuChoices = list(MainMenuChoices)
     
 def repl_loop():
-    global GAME_STARTED, NEXT_CABINET
+    global GAME_STARTED, NEXT_CABINET, WINNER
 
     def poll(options):
         while True:
@@ -266,6 +266,8 @@ def repl_loop():
                 
                 ACTIVE_CABINETS.clear()
                 NEXT_CABINET = 0
+                WINNER = None
+                GAME_STARTED = False
                 
                 CABINET_LOCK.release()
 

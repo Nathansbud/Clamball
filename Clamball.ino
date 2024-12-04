@@ -176,11 +176,8 @@ void manageFSM() {
     case WAITING_FOR_BALL:
       candidateHole = pollSensors();
       if(candidateHole != -1) {
-        if(candidateHole < 2) {
-          Serial.print("Sensed ball in hole: ");
-          Serial.println(candidateHole);
-        }
-        
+        Serial.print("Sensed ball in hole: ");
+        Serial.println(candidateHole);
         activeState = BALL_SENSED;        
       } else {
         Serial.println("Sensed no ball! Sending heartbeat...");
