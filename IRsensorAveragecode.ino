@@ -1,15 +1,15 @@
 // Define the hole ranges (in distance units)
 const float holeRanges[5][2] = {
-  {4.00, 4.76},   // Hole 1 range
-  {7.14, 7.64},   // Hole 2 range
-  {9.66, 10.16},  // Hole 3 range
-  {12.03, 12.53}, // Hole 4 range
-  {14.21, 14.61}, // Hole 5 range
+  {4.00, 5.49},   // Hole 1 range
+  {6.50, 8.99},   // Hole 2 range
+  {9.00, 10.99},  // Hole 3 range
+  {11.00, 13.99}, // Hole 4 range
+  {14.00, 17.00}, // Hole 5 range
 };
 
 // Wall baseline range (tolerance 1.0)
-const float wallBaselineMin = 18.64;
-const float wallBaselineMax = 20.64;
+const float wallBaselineMin = 17.50;
+const float wallBaselineMax = 21.00;
 
 // Variables for moving average calculation
 const int numReadings = 5;
@@ -72,8 +72,8 @@ void loop() {
           // If the average is within the hole range, increment the hole detection count
           holeDetectCount++;
           
-          // If the moving average stays within the hole range for 3 readings, trigger detection
-          if (holeDetectCount >= 3) {
+          // If the moving average stays within the hole range for 5 readings, trigger detection
+          if (holeDetectCount >= 5) {
             ballInHole = true;
             detectedHole = i;
             Serial.print("Ball likely in hole ");
@@ -104,5 +104,5 @@ void loop() {
   }
 
   // Delay to allow for smoother readings
-  delay(20); // Adjust delay as necessary
+  delay(200); // Adjust delay as necessary
 }
