@@ -16,6 +16,8 @@
 #define sensor3 A3
 #define sensor4 A4
 
+#define TESTING /* UNCOMMENT ME TO TEST FSM! */
+
 enum ResponseType {
   SUCCESS = 1,
   FAILURE = 0,
@@ -23,20 +25,20 @@ enum ResponseType {
 };
 
 enum DeviceState { 
-  ATTEMPTING,
-  WAITING_FOR_GAME,
-  INITIALIZE_GAME,
-  WAITING_FOR_BALL,
-  BALL_SENSED,
+  ATTEMPTING, //1
+  WAITING_FOR_GAME, //2
+  INITIALIZE_GAME, //3
+  WAITING_FOR_BALL, //4 
+  BALL_SENSED, //5
   
-  UPDATE_COVERAGE,
-  SEND_UPDATE,
+  UPDATE_COVERAGE, //6
+  SEND_UPDATE, //7
 
-  GAME_TIE,
-  GAME_WIN,
-  GAME_LOSS,
+  GAME_TIE, //8
+  GAME_WIN, //9
+  GAME_LOSS, //10
 
-  GAME_END
+  GAME_END //11
 };
 
 DeviceState activeState = ATTEMPTING;
@@ -136,6 +138,9 @@ DeviceState checkWinnerTransition(int response) {
 
 void manageFSM() {
   static int candidateHole = -1;
+  #ifdef TESTING
+  activeState = T_STATE;
+  #endif
   switch(activeState) {
     case ATTEMPTING:
       setupServer();      
@@ -144,9 +149,11 @@ void manageFSM() {
       // the server might not be started, or our Arduino might not actually be connected to WiFi yet
       if(CABINET_NUMBER == -1) { // Transition: ATTEMPTING -> ATTEMPTING
         activeState = ATTEMPTING;
-      } else {
+      } else { // Transition: ATTEMPTING -> WAITING_FOR_GAME
         activeState = WAITING_FOR_GAME;
       }
+
+      T_STATE = activeState;
       break;
     case WAITING_FOR_GAME:
       // This is a bit of an odd model, but it's a pain to have the Arduino acting as client AND server,
@@ -156,10 +163,12 @@ void manageFSM() {
         case SUCCESS:
           Serial.println("Let the games...begin!");
           activeState = INITIALIZE_GAME;
+          T_STATE = activeState;
           break;
         case FAILURE:
           Serial.println("Waiting for game...");
           activeState = WAITING_FOR_GAME;
+          T_STATE = activeState;
           break;
         case ERROR:
         default:
@@ -172,13 +181,15 @@ void manageFSM() {
       clearBoardState();
       matrix.loadFrame(boardState);
       activeState = WAITING_FOR_BALL;
+      T_STATE = activeState;
       break;
     case WAITING_FOR_BALL:
       candidateHole = pollSensors();
       if(candidateHole != -1) {
         Serial.print("Sensed ball in hole: ");
         Serial.println(candidateHole);
-        activeState = BALL_SENSED;        
+        activeState = BALL_SENSED;   
+        T_STATE = activeState;     
       } else {
         Serial.println("Sensed no ball! Sending heartbeat...");
         // TODO-Mikayla+Lucy: Do we want to clear out the active hole if any sensor reading fails?
@@ -207,16 +218,22 @@ void manageFSM() {
         activeHole = candidateHole;
         sensedCount = 1;
       }
+      delay(2000);
+      #ifdef TESTING
+      sensedCount = T_COUNT;
+      #endif
       
       if(sensedCount >= THRESHOLD_COUNT) {
         activeState = UPDATE_COVERAGE;
       } else {
         activeState = WAITING_FOR_BALL;
       }
+      T_STATE = activeState;
       break;
     case UPDATE_COVERAGE:
       activateHole(activeHole);
       activeState = SEND_UPDATE;
+      T_STATE = activeState;
       break;
     case SEND_UPDATE: {
       int response = sendHoleUpdate(CABINET_NUMBER, activeHole);
@@ -234,6 +251,7 @@ void manageFSM() {
       activeState = checkWinnerTransition(response);
       Serial.print("Transitioning to: ");
       Serial.println(activeState);
+      T_STATE = activeState;
       break;
     }
     case GAME_WIN:
@@ -457,6 +475,14 @@ int pollSensors() {
   
   // return returnedHole;
 }
+
+#ifdef TESTING
+int pollSensors() {
+  return T_HOLE_MADE;
+
+  // col * 5 + row
+}
+#endif
 
 void calibrate() {
   int thresh = 100000;

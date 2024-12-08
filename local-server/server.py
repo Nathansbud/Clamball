@@ -74,7 +74,7 @@ class Cabinet:
                 else:
                     return True
 
-            # Check each hole in the downward diagonal,
+            # Check each hole in the upward diagonal,
             # (0, 4), (1, 3), ..., (4, 0)
             if row + col == 4:
                 for ud in range(5):
@@ -83,7 +83,10 @@ class Cabinet:
                     return True
                 
         elif pattern == GamePattern.BLACKOUT:
-            pass    
+            for i in range(5):
+                if sum(self.holes[i]) != 5: break
+            else:
+                return True 
     
         return False
     

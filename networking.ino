@@ -7,10 +7,12 @@
   #include <SPI.h>
   #include <WiFiNINA.h>
 #endif 
+
+#define TESTING /* UNCOMMENT ME TO TEST FSM! */
   
 // If running locally, replace this with active IP address; for macOS,
 // this can be retrieved from CLI via: ipconfig getifaddr en0
-IPAddress server(10, 37, 117, 156);
+IPAddress server(172, 18, 142, 223); //server(10, 37, 117, 156); // 172.18.142.223
 uint16_t port = 6813;
 
 char ssid[] = NETWORK_SSID;
@@ -75,6 +77,13 @@ void setupServer() {
   delay(1000);
 }
 
+#ifdef TESTING 
+void setupServer() {
+  // assuming connection always succeeds...variables set in testing 
+  CABINET_NUMBER = T_CABINET_NUMBER;
+}
+#endif
+
 ResponseType checkShouldStart() {
   if(manager.connect(server, port) == 1) {
     client.get("/request-start");
@@ -90,7 +99,19 @@ ResponseType checkShouldStart() {
   return ERROR;
 }
 
+#ifdef TESTING
+ResponseType checkShouldStart() {
+  if (T_START==1) {
+    return SUCCESS;
+  } else {
+    return FAILURE;
+  }
+}
+#endif
+
 int sendHoleUpdate(uint8_t cabinetID, uint8_t index) {
+  Serial.print("Index: ");
+  Serial.println(index);
   return sendHoleUpdate(cabinetID, index / 5, index % 5);
 }
 
@@ -130,6 +151,11 @@ int sendHeartbeat() {
   }
 
   return -2;
+}
+
+#ifdef TESTING
+int sendHeartbeat() {
+  return 0;
 }
 
 // Credit to https://forum.arduino.cc/t/finding-the-mac-address-of-the-arduino-uno-r4/1308027/
