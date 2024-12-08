@@ -16,7 +16,7 @@
 #define sensor3 A3
 #define sensor4 A4
 
-#define TESTING /* UNCOMMENT ME TO TEST FSM! */
+// #define TESTING /* UNCOMMENT ME TO TEST FSM! */
 
 enum ResponseType {
   SUCCESS = 1,
@@ -116,10 +116,15 @@ void displayMessage(char message[], int textScrollSpeed) {
 
 void setup() {
   Serial.begin(115200);
+  #ifdef TESTING
+  testAllTests();
+  #endif 
   #if defined(ARDUINO_UNOR4_WIFI) || defined(ARDUINO_ARCH_RENESAS)
   matrix.begin();
   #endif
+  #ifndef TESTING
   setupWifi();
+  #endif
 }
 
 DeviceState checkWinnerTransition(int response) {
@@ -508,5 +513,8 @@ void calibrate() {
 
 void loop() {
   // calibrate();
+  #ifndef TESTING
   manageFSM();
+  #endif
+
 }
