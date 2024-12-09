@@ -45,9 +45,28 @@ extern int T_RESPONSE;
 extern int T_COUNT;
 extern int T_STATE;
 
-DeviceState[] states = [ATTEMPTING, WAITING_FOR_GAME, INITIALIZE_GAME, WAITING_FOR_BALL, BALL_SENSED, UPDATE_COVERAGE, SEND_UPDATE, GAME_TIE, GAME_WIN, GAME_LOSS, GAME_END];
+DeviceState states[13] = { 
+  ATTEMPTING, 
+  WAITING_FOR_GAME,
+  INITIALIZE_GAME,
+ 
+  WAITING_FOR_BALL,
+  BALL_SENSED,
+  
+  UPDATE_COVERAGE,
+  SEND_UPDATE,
 
-bool testTransition(DeviceState startState, DeviceState endState) {
+  GAME_TIE,
+  GAME_WIN,
+  GAME_LOSS,
+
+  GAME_END,
+
+  SEND_HEARTBEAT,
+  HOLE_LOCKOUT
+};
+
+bool testTransition(int startState, int endState) {
   T_STATE = states[startState-1];
   manageFSM();
   return T_STATE == states[endState-1];
@@ -67,7 +86,7 @@ bool testAllTests() {
     T_HOLE_MADE = testData[i][5];
     T_RESPONSE = testData[i][6];
     T_COUNT = testData[i][7];
-    if (!testTransition(testData[i][1], ttestData[i][2])) {
+    if (!testTransition(testData[i][1], testData[i][2])) {
       return false;
     }
     Serial.println();

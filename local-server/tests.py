@@ -1,12 +1,18 @@
 from server import Cabinet, GamePattern
 from utils import red, green
+
 '''
 Run all tests
 '''
 def run_all_tests():
-    for i in range(7):
-        res = globals()[f"server_test_{i}"]()
-        print(f"Server Test {i}: {green('PASS') if res else red('FAIL')}")
+    TESTS = {k: f for k, f in globals().items() if k.startswith("server_test_")}
+    for test_name, test in enumerate(TESTS):
+        try:
+            RESULT = test()
+        except:
+            RESULT = None
+        
+        print(f"{test_name} Result: {green('PASS') if {RESULT} else red('FAIL')}")
 
 ''' 
 Elements to test for server: 

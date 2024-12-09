@@ -5,17 +5,9 @@
 #define DEBUG_PRINT(A) (DEBUGGING ? Serial.print(A) : NULL)
 #define DEBUG_PRINTLN(A) (DEBUGGING ? Serial.println(A) : NULL)
 
-#define sensor0 A0
-#define sensor1 A1
-#define sensor2 A2
-#define sensor3 A3
-#define sensor4 A4
-
 /* UNCOMMENT ME TO TEST FSM! */
 // #define TESTING
-
 bool networked = false;
-bool production = false;
 
 // Defines the running average window size each sensor uses
 const int NUM_SENSORS = 5;
@@ -49,7 +41,7 @@ enum ResponseType {
 };
 
 enum DeviceState { 
-  ATTEMPTING,
+  ATTEMPTING, 
   WAITING_FOR_GAME,
   INITIALIZE_GAME,
  
@@ -208,11 +200,11 @@ void manageFSM() {
       // ideally have the server send a request to the client
       switch(checkShouldStart()) {
         case SUCCESS:
-          Serial.println("Let the games...begin!");
+          DEBUG_PRINTLN("Let the games...begin!");
           activeState = INITIALIZE_GAME;
           break;
         case FAILURE:
-          Serial.println("Waiting for game...");
+          DEBUG_PRINTLN("Waiting for game...");
           activeState = WAITING_FOR_GAME;
           break;
         case ERROR:
@@ -267,8 +259,8 @@ void manageFSM() {
       // Heartbeat serves the dual purpose of checking server alive, and polling for a winner;
       // response is one of: -2 (server error), -1 (no winner), 0, ..., 99 (winning ID)
       int response = sendHeartbeat();
-      Serial.print("Heartbeat Response: ");
-      Serial.println(response);
+      DEBUG_PRINT("Heartbeat Response: ");
+      DEBUG_PRINTLN(response);
       activeState = checkWinnerTransition(response);
       break;
     }
@@ -277,10 +269,10 @@ void manageFSM() {
       int activeColumn = computeActiveColumn();
       activeHole = 5 * activeRow + activeColumn;
 
-      Serial.print("Got: ");
-      Serial.print(activeRow);
-      Serial.print(" - ");
-      Serial.println(activeColumn);
+      DEBUG_PRINT("Got: ");
+      DEBUG_PRINT(activeRow);
+      DEBUG_PRINT(" - ");
+      DEBUG_PRINTLN(activeColumn);
 
       activeState = UPDATE_COVERAGE;
       break;
@@ -293,8 +285,8 @@ void manageFSM() {
       if(networked) {
         int response = sendHoleUpdate(CABINET_NUMBER, activeHole);
       
-        Serial.print("Got response after sending hole: ");
-        Serial.println(response);
+        DEBUG_PRINT("Got response after sending hole: ");
+        DEBUG_PRINTLN(response);
 
         // TODO: Do we want to clear out sensorReadings here?
 
@@ -302,15 +294,15 @@ void manageFSM() {
         // it takes either to WAITING_FOR_HOLE (no winner), GAME_WIN/GAME_LOSS (winner), or ATTEMPTING (server error) 
         activeState = checkWinnerTransition(response);
       } else {
-        activeState = HOLE_TIMEOUT;
+        activeState = HOLE_LOCKOUT;
       }
 
       // Reset hole metadata!
       activeHole = -1;
       activeRow = -1;
       
-      Serial.print("Transitioning to: ");
-      Serial.println(activeState);
+      DEBUG_PRINT("Transitioning to: ");
+      DEBUG_PRINTLN(activeState);
       break;
     }
     case GAME_WIN:
@@ -375,14 +367,15 @@ int computeActiveColumn() {
   int minColumn = 0; 
   float minReading = 100;
 
-  // Find the sensor with the lowest average reading (assuming that any reading below wall corresponds with having hit a hole)
+  // Find the sensor with the lowest average reading, assuming that 
+  // any reading below wall corresponds with having hit a hole
   for(int i = 0; i < NUM_SENSORS; i++) {
     float sensorAvg = sensorReadings[i][AVG_INDEX];
     
-    Serial.print("Sensor ");
-    Serial.print(i);
-    Serial.print(" - ");
-    Serial.println(sensorAvg);
+    DEBUG_PRINT("Sensor ");
+    DEBUG_PRINT(i);
+    DEBUG_PRINT(" - ");
+    DEBUG_PRINTLN(sensorAvg);
     
     if(sensorAvg < minReading) {
       minColumn = i;
