@@ -140,8 +140,35 @@ void initializeSensors() {
   }
 }
 
+void initWDT() {
+  R_WDT->WDTCR = (0b10 | (0b1111 << 4) | (0b11 << 8) | (0b11 << 12)); //set this time according to 
+  //increase TOPS to maximum timtout duration (0b1111)
+  R_WDT->WDTSR = 0; // clear watchdog status
+
+  //data sheet pg. 580
+  //timeout period = (prescalar * timeout count) / clock frequency --> not exactly sure on math
+}
+
+
+/* pet the watchdog */
+/*pet dont kick :)*/
+void petWDT() {
+  R_WDT->WDTRR = 0;
+  R_WDT->WDTRR = 0xff;
+}
+
 void setup() {
   Serial.begin(115200);
+
+  //check if wdt caused a reset:
+  if (R_WDT->WDTSR & 0x01) {  //0x01 is the timeout flag WDTSR register
+    // Log the watchdog timeout event
+    Serial.println("Watchdog timeout occurred. Restarting the game...");
+    // Clear the watchdog timeout flag
+    R_WDT->WDTSR = 0;
+    //Reset the game or reset the server??
+    //in theory would reset here...
+  }
   
   // Put each digital pin into INPUT_PULLUP, so we can get away with fewer wires on our buttons
   for(int i = 0; i < NUM_BUTTONS; i++) {
@@ -287,6 +314,9 @@ void manageFSM() {
       break;
     }
     case BALL_SENSED: {
+      //pet the watchdog:
+      petWDT();
+      
       // Compute the active column based on running averages maintained in WAITING_FOR_BALL
       int activeColumn = computeActiveColumn();
       activeHole = 5 * activeRow + activeColumn;
