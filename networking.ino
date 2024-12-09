@@ -43,6 +43,8 @@ void setupWifi() {
     // wait 2.5 seconds for re-connect attempt:
     delay(2500);
   }
+
+  printWifiStatus();
 }
 
 void setupServer() {
