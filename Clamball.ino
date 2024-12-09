@@ -5,13 +5,16 @@
 #define DEBUG_PRINT(A) (DEBUGGING ? Serial.print(A) : NULL)
 #define DEBUG_PRINTLN(A) (DEBUGGING ? Serial.println(A) : NULL)
 
+#define LOCKOUT_PIN 3
+
 /* UNCOMMENT ME TO TEST FSM! */
 // #define TESTING
-bool networked = false;
+bool networked = true;
 
 // Defines the running average window size each sensor uses
 const int NUM_SENSORS = 5;
 const int SENSOR_WINDOW = 10;
+const int SENSOR_DEFAULT = 30;
 
 const int TOTAL_INDEX = SENSOR_WINDOW;
 const int AVG_INDEX = SENSOR_WINDOW + 1;
@@ -33,6 +36,8 @@ int activeHole = -1;
 // the larger the heartbeat threshold, the less likely it is to interfere with pin functionality
 int HEARTBEAT_COUNT = 0;
 const int HEARTBEAT_THRESHOLD = 50;
+
+volatile bool LOCKED_OUT = false;
 
 enum ResponseType {
   SUCCESS = 1,
@@ -119,10 +124,20 @@ void displayMessage(char message[], int textScrollSpeed) {
   matrix.endDraw();
 }
 
-volatile int x = 0;
+void lockoutISR() {
+  // Allow regular operations to resume; if we are in HOLE_LOCKOUT, we will return to WAITING_FOR_BALL
+  LOCKED_OUT = false;
+}
 
-void doAThing() {
-  x = 100;
+void initializeSensors() {
+  for(int i = 0; i < NUM_SENSORS; i++) {
+    for(int j = 0; j < SENSOR_WINDOW; j++) {
+      sensorReadings[i][j] = SENSOR_DEFAULT;
+    }
+    
+    sensorReadings[i][TOTAL_INDEX] = SENSOR_DEFAULT * SENSOR_WINDOW;
+    sensorReadings[i][AVG_INDEX] = SENSOR_DEFAULT;  
+  }
 }
 
 void setup() {
@@ -134,21 +149,12 @@ void setup() {
     int usePin = i != 3 ? i : i + 10;
     pinMode(usePin, INPUT_PULLUP);
   }
+  
+  pinMode(LOCKOUT_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(LOCKOUT_PIN), lockoutISR, FALLING);  
 
-  pinMode(3, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(3), doAThing, FALLING);
-
-  // Initialize all sensor readings to 20, which is a little beyond what they should read at the wall
-  for(int i = 0; i < NUM_SENSORS; i++) {
-    for(int j = 0; j < SENSOR_WINDOW; j++) {
-      sensorReadings[i][j] = 20;
-    }
-    
-    sensorReadings[i][TOTAL_INDEX] = 20 * SENSOR_WINDOW;
-    sensorReadings[i][AVG_INDEX] = 20;  
-  }
-
-  matrix.begin();
+  // Initialize running average computations to hold a default, unrealistically high sensor reading value to begin
+  initializeSensors();
   
   // For running unit tests, we don't want to be worrying about WiFi configuration,
   // which slows things down and requires actual integration w our server
@@ -159,6 +165,8 @@ void setup() {
     setupWifi();
   }
   #endif
+
+  matrix.begin();
 }
 
 DeviceState checkWinnerTransition(int response) {
@@ -173,6 +181,11 @@ DeviceState checkWinnerTransition(int response) {
   } else if(response == -2) {
     return ATTEMPTING;
   }
+}
+
+bool checkHeartbeat() {
+  HEARTBEAT_COUNT = (HEARTBEAT_COUNT + 1) % HEARTBEAT_THRESHOLD;
+  return HEARTBEAT_COUNT == HEARTBEAT_THRESHOLD - 1;
 }
 
 void manageFSM() {
@@ -222,8 +235,20 @@ void manageFSM() {
     case HOLE_LOCKOUT:
       // This state is a lockout state until the user manually resets by pressing the retrieve ball button!
       displayMessage("retrieve your ball!", 16);
+      
+      // We should probably still do a heartbeat while locked out, as we can still lose while in this state;
+      // also, should double check if displayMessage is blocking (lol)
+      if(networked && checkHeartbeat()) {
+        activeState = SEND_HEARTBEAT;
+      }
       break;
     case WAITING_FOR_BALL: {
+      // If we are currently in LOCKED_OUT mode, we should not actually be here; instead, place us in HOLE_LOCKOUT at the next transition
+      if(LOCKED_OUT) { 
+        activeState = HOLE_LOCKOUT;
+        break;
+      }
+
       // The polling logic of waiting for ball is to be constantly polling our IR sensors; 
       // they are finicky, we don't actually consider a reading on them gospel. Instead, we keep a running average of their readings
       updateSensorAverages(); // TODO: Update averages
@@ -245,11 +270,8 @@ void manageFSM() {
 
       if(hitDetected) { 
         activeState = BALL_SENSED;
-      } else if(networked) {
-        HEARTBEAT_COUNT = (HEARTBEAT_COUNT + 1) % HEARTBEAT_THRESHOLD;
-        if(HEARTBEAT_COUNT == HEARTBEAT_THRESHOLD - 1) {
-          activeState = SEND_HEARTBEAT;
-        }
+      } else if(networked && checkHeartbeat()) {
+        activeState = SEND_HEARTBEAT;
       } else {
         activeState = WAITING_FOR_BALL;
       }
@@ -288,7 +310,8 @@ void manageFSM() {
         DEBUG_PRINT("Got response after sending hole: ");
         DEBUG_PRINTLN(response);
 
-        // TODO: Do we want to clear out sensorReadings here?
+        // We are now "locked out", which means we should be placed into HOLE_LOCKOUT until further notice...eventually
+        LOCKED_OUT = true;
 
         // This state transition is guaranteed to leave SEND_UPDATE;
         // it takes either to WAITING_FOR_HOLE (no winner), GAME_WIN/GAME_LOSS (winner), or ATTEMPTING (server error) 
@@ -300,9 +323,9 @@ void manageFSM() {
       // Reset hole metadata!
       activeHole = -1;
       activeRow = -1;
-      
-      DEBUG_PRINT("Transitioning to: ");
-      DEBUG_PRINTLN(activeState);
+  
+      // Update all sensors to have cleared values
+      initializeSensors();
       break;
     }
     case GAME_WIN:
