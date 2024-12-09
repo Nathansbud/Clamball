@@ -1,8 +1,12 @@
+from server import Cabinet, GamePattern
+from utils import red, green
 '''
 Run all tests
 '''
 def run_all_tests():
-    pass
+    for i in range(7):
+        res = globals()[f"server_test_{i}"]()
+        print(f"Server Test {i}: {green('PASS') if res else red('FAIL')}")
 
 ''' 
 Elements to test for server: 
@@ -11,41 +15,65 @@ Elements to test for server:
    - can receive/send messages  
 
    - correct row,col is received when hole is made 
-   - self.holes is updated properly (update_hole)
-
-   - winning state results in winning message (did_win)
-   - non winning state continues game (did_win)
-   - tie??
 
    - test repl 
 '''
-## Test self.holes is updated properly (update_hole)
+## Test did_win: vertical win 
+def server_test_0():
+    cab0 = Cabinet(0)
+    for i in range(5):
+        cab0.update_hole(i, 0)
+    res = cab0.did_win(4,0)
+    return res==True
+
+## Test did_win: horizontal win 
 def server_test_1():
-    pass
+    cab0 = Cabinet(0)
+    for i in range(5):
+        cab0.update_hole(0, i)
+    res = cab0.did_win(0,4)
+    return res==True
 
-'''
-Elements to test for cabinets:
-   - board is cleared properly 
-   - matrix is updated correctly upon hole made 
-   - display is correctly updated when matrix updated (not sure how to test)
+## Test did_win: down diagonal win 
+def server_test_2():
+    cab0 = Cabinet(0)
+    for i in range(5):
+        cab0.update_hole(i, i)
+    res = cab0.did_win(4,4)
+    return res==True
 
-   - T1-2: attempting to wait for game --> when connected (cabinet # changes)
-   - T2-3: wait for game to init game --> when receive game start 
-   - T3-4: init game to wait for ball --> -- 
-   - T4-5: wait for ball to ball sensed --> error check pollSensors()
-   - T5-6: ball sensed to update coverage 
-   - T5-4: ball sensed to wait for ball 
-   - T6-7: update coverage to send update --> --
-   - T7-8: send update to game win 
-   - T7-9: send update to game loss 
-   - T7-4: send update to wait for ball 
-   - T7-1: send update to attempting 
+## Test did_win: up diagonal win 
+def server_test_3():
+    cab0 = Cabinet(0)
+    for i in range(5):
+        cab0.update_hole(i, 4-i)
+    res = cab0.did_win(0,4)
+    return res==True
 
-   - correct winner/loser is displayed 
+## Test did_win: blackout win 
+def server_test_4():
+    cab0 = Cabinet(0)
+    for i in range(5):
+        for j in range(5):
+            cab0.update_hole(i, j, GamePattern.BLACKOUT)
+    res = cab0.did_win(4,4)
+    return res==True
 
-'''
-def cabinet_test_1():
-    pass
+## Test did_win: no win LINE
+def server_test_5():
+    cab0 = Cabinet(0)
+    for i in range(3):
+        cab0.update_hole(i, 0)
+    res = cab0.did_win(2,0)
+    return res==False
+
+## Test did_win: no win BLACKOUT
+def server_test_6():
+    cab0 = Cabinet(0)
+    for i in range(5):
+        cab0.update_hole(i, 0)
+    res = cab0.did_win(4,0, GamePattern.BLACKOUT)
+    return res==False
 
 if __name__ == "__main__":
     run_all_tests()

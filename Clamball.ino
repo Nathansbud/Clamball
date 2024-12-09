@@ -11,6 +11,9 @@
 #define sensor3 A3
 #define sensor4 A4
 
+/* UNCOMMENT ME TO TEST FSM! */
+// #define TESTING
+
 bool networked = false;
 bool production = false;
 
@@ -154,9 +157,16 @@ void setup() {
   }
 
   matrix.begin();
+  
+  // For running unit tests, we don't want to be worrying about WiFi configuration,
+  // which slows things down and requires actual integration w our server
+  #ifdef TESTING
+  testAllTests();
+  #else
   if(networked) {
     setupWifi();
   }
+  #endif
 }
 
 DeviceState checkWinnerTransition(int response) {
@@ -175,6 +185,11 @@ DeviceState checkWinnerTransition(int response) {
 
 void manageFSM() {
   static int candidateHole = -1;
+  
+  #ifdef TESTING
+  activeState = T_STATE;
+  #endif
+
   switch(activeState) {
     case ATTEMPTING:
       setupServer();      
@@ -183,7 +198,7 @@ void manageFSM() {
       // the server might not be started, or our Arduino might not actually be connected to WiFi yet
       if(CABINET_NUMBER == -1) { // Transition: ATTEMPTING -> ATTEMPTING
         activeState = ATTEMPTING;
-      } else {
+      } else { // Transition: ATTEMPTING -> WAITING_FOR_GAME
         activeState = WAITING_FOR_GAME;
       }
       break;
@@ -313,6 +328,10 @@ void manageFSM() {
       activeState = ATTEMPTING;
       break;
   }
+
+  #ifdef TESTING
+  T_STATE = activeState;
+  #endif
 }
 
 int argmin(int arr[]) {
@@ -334,7 +353,8 @@ void updateSensorAverages() {
     float sensorRead = analogRead(pin) * 0.0048828125;
     float sensorDistance = 13 * pow(sensorRead, -1);
     
-    // Failsafe to prevent nans from propogating
+    // Failsafe to prevent nans from propagating; sometimes our readings are just infinite,
+    // and we aren't certain why
     if(isnan(sensorDistance) || isinf(sensorDistance)) {
       sensorDistance = 30;
     }
@@ -343,35 +363,9 @@ void updateSensorAverages() {
     float oldCurrent = sensorReadings[i][readIndex];
     
     sensorReadings[i][TOTAL_INDEX] -= sensorReadings[i][readIndex];
-    // Serial.print("P1: ");
-    // Serial.println(sensorReadings[i][TOTAL_INDEX]);
     sensorReadings[i][TOTAL_INDEX] += sensorDistance;
-    // Serial.print("P2: ");
-    // Serial.println(sensorReadings[i][TOTAL_INDEX]);
     sensorReadings[i][readIndex] = sensorDistance;
-    // Serial.print("P3: ");
-    // Serial.println(sensorReadings[i][readIndex]);
     sensorReadings[i][AVG_INDEX] = sensorReadings[i][TOTAL_INDEX] / SENSOR_WINDOW;
-    // Serial.print("P4: ");
-    // Serial.println(sensorReadings[i][AVG_INDEX]);
-
-    // Serial.print("Sensor ");
-    // Serial.print(i);
-    // Serial.print(" - ");
-    // Serial.print(sensorDistance);
-    // Serial.print(" - ");
-    // Serial.println(sensorReadings[i][AVG_INDEX]);
-    if(isnan(sensorReadings[i][TOTAL_INDEX])) {
-      Serial.print("OH NO IT'S NAN: ");
-      Serial.print(oldCurrent);
-      Serial.print(" - ");
-      Serial.print(oldValue);
-      Serial.print(" - ");
-      Serial.print(readIndex);
-      Serial.print(" - ");
-      Serial.println(SENSOR_WINDOW);
-      delay(10000);
-    }
   }
 
   readIndex = (readIndex + 1) % SENSOR_WINDOW;
@@ -383,12 +377,6 @@ int computeActiveColumn() {
 
   // Find the sensor with the lowest average reading (assuming that any reading below wall corresponds with having hit a hole)
   for(int i = 0; i < NUM_SENSORS; i++) {
-    // for(int j = 0; j <= AVG_INDEX; j++) {
-    //   Serial.print(sensorReadings[i][j]);
-    //   Serial.print("-");
-    // }
-    // Serial.println();
-
     float sensorAvg = sensorReadings[i][AVG_INDEX];
     
     Serial.print("Sensor ");
@@ -402,11 +390,11 @@ int computeActiveColumn() {
     }
   }
 
-  // Serial.print("Got: ");
-  // Serial.println(minColumn);
   return minColumn;
 }
 
 void loop() {
+  #ifndef TESTING
   manageFSM();
+  #endif
 }

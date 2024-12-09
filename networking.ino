@@ -1,18 +1,5 @@
-#include <ArduinoHttpClient.h>
 #include "network_config.h" 
-
-#if defined(ARDUINO_UNOR4_WIFI) || defined(ARDUINO_ARCH_RENESAS)
-  #include "WiFiS3.h"
-#else
-  #include <SPI.h>
-  #include <WiFiNINA.h>
-#endif 
   
-// If running locally, replace this with active IP address; for macOS,
-// this can be retrieved from CLI via: ipconfig getifaddr en0
-IPAddress server(10, 37, 117, 156);
-uint16_t port = 6813;
-
 char ssid[] = NETWORK_SSID;
 char pass[] = NETWORK_PASS;
 int keyIndex = 0;
@@ -48,6 +35,9 @@ void setupWifi() {
 }
 
 void setupServer() {
+  #ifdef TESTING
+  CABINET_NUMBER = T_CABINET_NUMBER;
+  #else
   Serial.println("\nStarting connection to server...");
   // if you get a connection, report back via serial:)
   
@@ -75,9 +65,11 @@ void setupServer() {
   }
 
   delay(1000);
+  #endif
 }
 
 ResponseType checkShouldStart() {
+  #ifndef TESTING
   if(manager.connect(server, port) == 1) {
     client.get("/request-start");
     
@@ -90,9 +82,14 @@ ResponseType checkShouldStart() {
   }
   
   return ERROR;
+  #else
+  return T_START == 1 ? SUCCESS : FAILURE;
+  #endif
 }
 
 int sendHoleUpdate(uint8_t cabinetID, uint8_t index) {
+  Serial.print("Index: ");
+  Serial.println(index);
   return sendHoleUpdate(cabinetID, index / 5, index % 5);
 }
 
@@ -125,6 +122,7 @@ int checkWinner(String content) {
 }
 
 int sendHeartbeat() {
+  #ifndef TESTING
   if(manager.connect(server, port) == 1) { 
     client.get("/heartbeat");
     
@@ -132,6 +130,9 @@ int sendHeartbeat() {
   }
 
   return -2;
+  #else
+  return -1;
+  #endif
 }
 
 // Credit to https://forum.arduino.cc/t/finding-the-mac-address-of-the-arduino-uno-r4/1308027/
