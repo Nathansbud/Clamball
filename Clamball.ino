@@ -127,6 +127,7 @@ void displayMessage(char message[], int textScrollSpeed) {
 void lockoutISR() {
   // Allow regular operations to resume; if we are in HOLE_LOCKOUT, we will return to WAITING_FOR_BALL
   LOCKED_OUT = false;
+  petWDT(); //also pet here when lockout is occuring?
 }
 
 void initializeSensors() {
