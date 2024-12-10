@@ -12,7 +12,7 @@ LOCAL = True
 SURPRESS_SYSTEM_LOGS = False
 SURPRESS_SERVER_LOGS = False
 
-ADDRESS = "localhost" if LOCAL else "192.168.86.30"
+ADDRESS = "localhost" if LOCAL else "10.37.117.156"
 PORT = 6813
 DIRECTORY = "."
 
@@ -32,17 +32,16 @@ def create_cabinet(cid):
     ACTIVE_CABINETS[cid] = Cabinet(cid)
 
 class GamePattern(Enum):
-    LINE = 0
-    BLACKOUT = 1
+    LINE = "5-in-a-Row"
+    BLACKOUT = "Blackout"
+
+ACTIVE_PATTERN = GamePattern.LINE
 
 class Cabinet:
     def __init__(self, cabinet_id, holes=None):
         self.cabinet_id = cabinet_id
         self.holes = [[False for _ in range(5)] for _ in range(5)] if not holes else holes
 
-        # TODO: hold some connection metadata
-        self.connection = None
-    
     def update_hole(self, row, col, state=True):
         self.holes[row][col] = state
     
@@ -192,7 +191,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
                 
                 if WINNER is not None:
                     self.respond(200, f"W{WINNER}")
-                elif ACTIVE_CABINETS[cabinet].did_win(row, col):
+                elif ACTIVE_CABINETS[cabinet].did_win(row, col, ACTIVE_PATTERN):
                     WINNER = cabinet
                     self.respond(200, f"W{cabinet}")
                 else:
@@ -217,13 +216,13 @@ def launch_server(port):
 class MainMenuChoices(Enum):
     GameSettings = "Game Settings"
     StartGame = "Start Game"
-    DebugMsg = "Debug Message"
     ResetAll = "Reset All"
 
 L_MainMenuChoices = list(MainMenuChoices)
-    
+L_GamePatterns = list(GamePattern)
+
 def repl_loop():
-    global GAME_STARTED, NEXT_CABINET, WINNER
+    global GAME_STARTED, NEXT_CABINET, WINNER, ACTIVE_PATTERN
 
     def poll(options):
         while True:
@@ -248,22 +247,14 @@ def repl_loop():
         if choice != None:
             chosen = L_MainMenuChoices[choice]            
             if chosen == MainMenuChoices.GameSettings:
-                print("swag")
+                pattern = poll([m.value for m in L_GamePatterns])
+                if pattern is not None:
+                    ACTIVE_PATTERN = L_GamePatterns[pattern]
+                    print(f"Setting game pattern to {bold(ACTIVE_PATTERN.value)}!")
+                else:
+                    print(f"No pattern selected; keeping pattern unchanged ({bold(ACTIVE_PATTERN.value)})")
             elif chosen == MainMenuChoices.StartGame:
                 GAME_STARTED = True
-            elif chosen == MainMenuChoices.DebugMsg:
-                response = requests.get(request_url("register-cabinet"))
-                if response.text.startswith("R"):
-                    cabinet_idx = int(response.text[1])
-                else:
-                    print("idk yet todo")
-                    cabinet_idx = 9
-                
-                for i in range(5):
-                    response = requests.post(
-                        request_url("hole-update"),
-                        data=f"{cabinet_idx}-0{i}"
-                    )
             elif chosen == MainMenuChoices.ResetAll:
                 CABINET_LOCK.acquire()
                 
@@ -277,11 +268,7 @@ def repl_loop():
 if __name__ == "__main__":
     # launch a separate thread to manage the messages being passed around
     c1_thread = threading.Thread(target=lambda: launch_server(port=6813))
-    c1_thread.start()
-
-    # c2_thread = threading.Thread(target=lambda: launch_server(port=6814))
-    # c2_thread.start()
-    
+    c1_thread.start()    
     
     repl_loop()
         

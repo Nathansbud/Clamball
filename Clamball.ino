@@ -13,7 +13,7 @@ bool networked = true;
 
 // Defines the running average window size each sensor uses
 const int NUM_SENSORS = 5;
-const int SENSOR_WINDOW = 10;
+const int SENSOR_WINDOW = 8;
 const int SENSOR_DEFAULT = 30;
 
 const int TOTAL_INDEX = SENSOR_WINDOW;
@@ -35,7 +35,12 @@ int activeHole = -1;
 // Counter used to trigger heartbeat messages, once HEARTBEAT_COUNT == HEARTBEAT_THRESHOLD - 1;
 // the larger the heartbeat threshold, the less likely it is to interfere with pin functionality
 int HEARTBEAT_COUNT = 0;
-const int HEARTBEAT_THRESHOLD = 5000;
+const int HEARTBEAT_THRESHOLD = 50000;
+
+int LOCKOUT_COUNT = 0;
+bool LOCKOUT_SWAP = false;
+const int LOCKOUT_FLASH = 50000;
+
 
 volatile bool LOCKED_OUT = false;
 
@@ -80,6 +85,12 @@ uint32_t boardState[3] = {
   0x000000000
 };
 
+uint32_t lockoutState[3] = {
+  0x000000000,
+  0x000000000,
+  0x000000000
+};
+
 void clearBoardState() {
   for (int i = 0; i < 3; i++) boardState[i] = 0;
 }
@@ -111,6 +122,41 @@ void enableLED(int row, int column) {
   boardState[newRow] |= (1 << (31 - newCol));
 }
 
+void refreshLockoutPattern() {
+  for(int i = 0; i < 3; i++) {
+    lockoutState[i] = boardState[i];
+  }
+
+  int holes[8][2] = {
+    {2, 11},
+    {2, 10},
+    {2, 9},
+    {2, 8},
+    {2, 7},
+    {3, 7},
+    {4, 7},
+    {5, 7}
+  }; 
+  
+
+  for(int i = 0; i < 8; i++) {
+    uint8_t index1D = holes[i][0] * 12 + holes[i][1];
+    uint8_t newRow = index1D / 32;
+    uint8_t newCol = index1D % 32;
+  
+    lockoutState[newRow] |= (1 << (31 - newCol));
+  }
+}
+
+
+void toggleLockoutPattern(bool enable) {
+  if(enable) {
+    matrix.loadFrame(lockoutState);
+  } else {
+    matrix.loadFrame(boardState);
+  }
+}
+
 // Display a message on the LED matrix using the ArduinoGraphics library,
 // per https://docs.arduino.cc/tutorials/uno-r4-wifi/led-matrix/#scrolling-text-example
 void displayMessage(char message[], int textScrollSpeed) {
@@ -126,8 +172,11 @@ void displayMessage(char message[], int textScrollSpeed) {
 
 void lockoutISR() {
   // Allow regular operations to resume; if we are in HOLE_LOCKOUT, we will return to WAITING_FOR_BALL
+  LOCKOUT_COUNT = 0;
+  LOCKOUT_SWAP = false;
   LOCKED_OUT = false;
-  petWDT(); //also pet here when lockout is occuring?
+  toggleLockoutPattern(false);
+  // petWDT(); //also pet here when lockout is occuring?
 }
 
 void initializeSensors() {
@@ -158,7 +207,7 @@ void petWDT() {
   R_WDT->WDTRR = 0xff;
 }
 
-void setup() {
+void setup() {  
   Serial.begin(115200);
 
   //check if wdt caused a reset:
@@ -261,9 +310,13 @@ void manageFSM() {
       activeState = WAITING_FOR_BALL;
       break;
     case HOLE_LOCKOUT:
-      // This state is a lockout state until the user manually resets by pressing the retrieve ball button!
-      displayMessage("retrieve your ball!", 16);
-      
+      if(LOCKOUT_COUNT == 0) {
+        LOCKOUT_SWAP = !LOCKOUT_SWAP;
+        toggleLockoutPattern(LOCKOUT_SWAP);
+      }
+
+      LOCKOUT_COUNT = (LOCKOUT_COUNT + 1) % LOCKOUT_FLASH;
+
       // We should probably still do a heartbeat while locked out, as we can still lose while in this state;
       // also, should double check if displayMessage is blocking (lol)
       if(networked && checkHeartbeat()) {
@@ -323,7 +376,7 @@ void manageFSM() {
     }
     case BALL_SENSED: {
       //pet the watchdog:
-      petWDT();
+      // petWDT();
       
       // Compute the active column based on running averages maintained in WAITING_FOR_BALL
       int activeColumn = computeActiveColumn();
@@ -349,6 +402,7 @@ void manageFSM() {
         DEBUG_PRINTLN(response);
 
         // We are now "locked out", which means we should be placed into HOLE_LOCKOUT until further notice...eventually
+        refreshLockoutPattern(); 
         LOCKED_OUT = true;
 
         // This state transition is guaranteed to leave SEND_UPDATE;
