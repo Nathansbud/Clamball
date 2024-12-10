@@ -35,7 +35,7 @@ int activeHole = -1;
 // Counter used to trigger heartbeat messages, once HEARTBEAT_COUNT == HEARTBEAT_THRESHOLD - 1;
 // the larger the heartbeat threshold, the less likely it is to interfere with pin functionality
 int HEARTBEAT_COUNT = 0;
-const int HEARTBEAT_THRESHOLD = 50;
+const int HEARTBEAT_THRESHOLD = 5000;
 
 volatile bool LOCKED_OUT = false;
 
@@ -280,9 +280,16 @@ void manageFSM() {
     case SEND_HEARTBEAT: {
       // Heartbeat serves the dual purpose of checking server alive, and polling for a winner;
       // response is one of: -2 (server error), -1 (no winner), 0, ..., 99 (winning ID)
+      int timeStart = millis();
+      
       int response = sendHeartbeat();
       DEBUG_PRINT("Heartbeat Response: ");
       DEBUG_PRINTLN(response);
+
+      DEBUG_PRINT("Took: ");
+      DEBUG_PRINT(millis() - timeStart);
+      DEBUG_PRINTLN(" ms");
+
       activeState = checkWinnerTransition(response);
       break;
     }
