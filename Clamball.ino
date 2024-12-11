@@ -9,7 +9,7 @@
 
 /* UNCOMMENT ME TO TEST FSM! */
 // #define TESTING
-bool networked = true;
+bool networked = false;
 
 // Defines the running average window size each sensor uses
 const int NUM_SENSORS = 5;
@@ -34,15 +34,15 @@ int activeHole = -1;
 
 // Counter used to trigger heartbeat messages, once HEARTBEAT_COUNT == HEARTBEAT_THRESHOLD - 1;
 // the larger the heartbeat threshold, the less likely it is to interfere with pin functionality
-int HEARTBEAT_COUNT = 0;
+int HEARTBEAT_COUNT = 1;
 const int HEARTBEAT_THRESHOLD = 50000;
 
 int LOCKOUT_COUNT = 0;
 bool LOCKOUT_SWAP = false;
 const int LOCKOUT_FLASH = 50000;
-
-
 volatile bool LOCKED_OUT = false;
+
+const int TEXT_CYCLE_COUNT = 5;
 
 enum ResponseType {
   SUCCESS = 1,
@@ -51,24 +51,23 @@ enum ResponseType {
 };
 
 enum DeviceState { 
-  ATTEMPTING, 
-  WAITING_FOR_GAME,
-  INITIALIZE_GAME,
- 
-  WAITING_FOR_BALL,
-  SEND_HEARTBEAT,
-  BALL_SENSED,
+  /* 1 */  ATTEMPTING,  
+  /* 2 */  WAITING_FOR_GAME,
+  /* 3 */  INITIALIZE_GAME,
+
+  /* 4 */  WAITING_FOR_BALL,
+  /* 5 */  BALL_SENSED,
+  /* 6 */  UPDATE_COVERAGE,
+  /* 7 */  SEND_UPDATE,
   
-  UPDATE_COVERAGE,
-  SEND_UPDATE,
+  /* 9 */  GAME_WIN,
+  /* 10 */ GAME_LOSS,
+  /* 11 */ GAME_END,
 
-  HOLE_LOCKOUT,
-
-  GAME_TIE,
-  GAME_WIN,
-  GAME_LOSS,
-
-  GAME_END
+  /* 12 */ HOLE_LOCKOUT,
+  /* 13 */ SEND_HEARTBEAT,
+  
+  /* 14 */ GAME_RESET,
 };
 
 DeviceState activeState = networked ? ATTEMPTING : INITIALIZE_GAME;
@@ -170,6 +169,21 @@ void displayMessage(char message[], int textScrollSpeed) {
   matrix.endDraw();
 }
 
+void resetGame() {
+  activeRow = -1;
+  activeHole = -1;
+  HEARTBEAT_COUNT = 0;
+
+  LOCKOUT_COUNT = 0;
+  LOCKOUT_SWAP = false;
+  LOCKED_OUT = false;
+  
+  clearBoardState();
+  initializeSensors();
+
+  matrix.loadFrame(boardState);
+}
+
 void lockoutISR() {
   // Allow regular operations to resume; if we are in HOLE_LOCKOUT, we will return to WAITING_FOR_BALL
   LOCKOUT_COUNT = 0;
@@ -256,13 +270,13 @@ DeviceState checkWinnerTransition(int response) {
   } else if(response == -1) {
     return WAITING_FOR_BALL;
   } else if(response == -2) {
-    return ATTEMPTING;
+    return GAME_RESET;
   }
 }
 
 bool checkHeartbeat() {
   HEARTBEAT_COUNT = (HEARTBEAT_COUNT + 1) % HEARTBEAT_THRESHOLD;
-  return HEARTBEAT_COUNT == HEARTBEAT_THRESHOLD - 1;
+  return networked && HEARTBEAT_COUNT == 0;
 }
 
 void manageFSM() {
@@ -274,13 +288,12 @@ void manageFSM() {
 
   switch(activeState) {
     case ATTEMPTING:
-      setupServer();      
-
       // If our server setup did not provide our cabinet with an ID to use, we self-loop back to keep trying again; 
       // the server might not be started, or our Arduino might not actually be connected to WiFi yet
-      if(CABINET_NUMBER == -1) { // Transition: ATTEMPTING -> ATTEMPTING
+      if(CABINET_NUMBER == -1) { // Transition: 1-1 [ATTEMPTING -> ATTEMPTING]
+        setupServer();
         activeState = ATTEMPTING;
-      } else { // Transition: ATTEMPTING -> WAITING_FOR_GAME
+      } else { // Transition: 1-2 [ATTEMPTING -> WAITING_FOR_GAME]
         activeState = WAITING_FOR_GAME;
       }
       break;
@@ -309,20 +322,6 @@ void manageFSM() {
       matrix.loadFrame(boardState);
       activeState = WAITING_FOR_BALL;
       break;
-    case HOLE_LOCKOUT:
-      if(LOCKOUT_COUNT == 0) {
-        LOCKOUT_SWAP = !LOCKOUT_SWAP;
-        toggleLockoutPattern(LOCKOUT_SWAP);
-      }
-
-      LOCKOUT_COUNT = (LOCKOUT_COUNT + 1) % LOCKOUT_FLASH;
-
-      // We should probably still do a heartbeat while locked out, as we can still lose while in this state;
-      // also, should double check if displayMessage is blocking (lol)
-      if(networked && checkHeartbeat()) {
-        activeState = SEND_HEARTBEAT;
-      }
-      break;
     case WAITING_FOR_BALL: {
       // If we are currently in LOCKED_OUT mode, we should not actually be here; instead, place us in HOLE_LOCKOUT at the next transition
       if(LOCKED_OUT) { 
@@ -335,7 +334,6 @@ void manageFSM() {
       updateSensorAverages(); // TODO: Update averages
 
       // Check for any inputs on our push buttons; these mean a guaranteed hit has occurred!
-      // Every 10 times this is not the case, we send a heartbeat message
       bool hitDetected = false;
       for(int i = 0; i < NUM_BUTTONS; i++)  {
         int usePin = i != 3 ? i : i + 10;
@@ -351,27 +349,11 @@ void manageFSM() {
 
       if(hitDetected) { 
         activeState = BALL_SENSED;
-      } else if(networked && checkHeartbeat()) {
+      } else if(checkHeartbeat()) {
         activeState = SEND_HEARTBEAT;
       } else {
         activeState = WAITING_FOR_BALL;
       }
-      break;
-    }
-    case SEND_HEARTBEAT: {
-      // Heartbeat serves the dual purpose of checking server alive, and polling for a winner;
-      // response is one of: -2 (server error), -1 (no winner), 0, ..., 99 (winning ID)
-      int timeStart = millis();
-      
-      int response = sendHeartbeat();
-      DEBUG_PRINT("Heartbeat Response: ");
-      DEBUG_PRINTLN(response);
-
-      DEBUG_PRINT("Took: ");
-      DEBUG_PRINT(millis() - timeStart);
-      DEBUG_PRINTLN(" ms");
-
-      activeState = checkWinnerTransition(response);
       break;
     }
     case BALL_SENSED: {
@@ -395,22 +377,17 @@ void manageFSM() {
       activeState = SEND_UPDATE;
       break;
     case SEND_UPDATE: {
-      if(networked) {
-        int response = sendHoleUpdate(CABINET_NUMBER, activeHole);
-      
-        DEBUG_PRINT("Got response after sending hole: ");
-        DEBUG_PRINTLN(response);
+      int response = sendHoleUpdate(CABINET_NUMBER, activeHole);
+    
+      DEBUG_PRINT("Got response after sending hole: ");
+      DEBUG_PRINTLN(response);
 
-        // We are now "locked out", which means we should be placed into HOLE_LOCKOUT until further notice...eventually
-        refreshLockoutPattern(); 
-        LOCKED_OUT = true;
+      // We are now "locked out", which means we should be placed into HOLE_LOCKOUT until further notice...eventually
+      refreshLockoutPattern(); 
+      LOCKED_OUT = true;
 
-        // This state transition is guaranteed to leave SEND_UPDATE;
-        // it takes either to WAITING_FOR_HOLE (no winner), GAME_WIN/GAME_LOSS (winner), or ATTEMPTING (server error) 
-        activeState = checkWinnerTransition(response);
-      } else {
-        activeState = HOLE_LOCKOUT;
-      }
+      // This state transition is guaranteed to leave SEND_UPDATE;
+      // it takes either to WAITING_FOR_HOLE (no winner), GAME_WIN/GAME_LOSS (winner), or ATTEMPTING (server error) 
 
       // Reset hole metadata!
       activeHole = -1;
@@ -418,21 +395,64 @@ void manageFSM() {
   
       // Update all sensors to have cleared values
       initializeSensors();
+
+      activeState = checkWinnerTransition(response);
       break;
     }
     case GAME_WIN:
-      displayMessage("winner, winner, chicken dinner!", 150);
+      for(int i = 0; i < TEXT_CYCLE_COUNT; i++) {
+        displayMessage("winner, winner, chicken dinner!", 150);
+      }
+      activeState = GAME_END;
       break;
     case GAME_LOSS:
-      displayMessage("loser, loser, lemon snoozer!", 150);
+      for(int i = 0; i < TEXT_CYCLE_COUNT; i++) {
+        displayMessage("loser, loser, lemon snoozer!", 150);
+      }
+      activeState = GAME_END;
       break;
-    case GAME_TIE:
-      displayMessage("tie, tie, no need to cry!", 150);
+    case GAME_END:
+      activeState = GAME_RESET;
       break;
-    case GAME_END:  
+    case HOLE_LOCKOUT:
+      if(!LOCKED_OUT) { // Transition: 12-4 [HOLE_LOCKOUT -> WAITING_FOR_BALL]
+        activeState = WAITING_FOR_BALL;
+      } else {
+        if(checkHeartbeat()) { // Transition: 12-13 [HOLE_LOCKOUT -> SEND_HEARTBEAT]
+          activeState = SEND_HEARTBEAT;
+        } else { // Transition: 12-12 [HOLE_LOCKOUT -> HOLE_LOCKOUT]
+          if(LOCKOUT_COUNT == 0) { 
+            LOCKOUT_SWAP = !LOCKOUT_SWAP;
+            toggleLockoutPattern(LOCKOUT_SWAP);
+          }
+
+          LOCKOUT_COUNT = (LOCKOUT_COUNT + 1) % LOCKOUT_FLASH;
+          activeState = HOLE_LOCKOUT;
+        }
+      }
+      break;
+    case SEND_HEARTBEAT: {
+      // Heartbeat serves the dual purpose of checking server alive, and polling for a winner;
+      // response is one of: -2 (server error), -1 (no winner), 0, ..., 99 (winning ID)
+      int timeStart = millis();
+      
+      int response = sendHeartbeat();
+      DEBUG_PRINT("Heartbeat Response: ");
+      DEBUG_PRINTLN(response);
+
+      DEBUG_PRINT("Took: ");
+      DEBUG_PRINT(millis() - timeStart);
+      DEBUG_PRINTLN(" ms");
+
+      activeState = checkWinnerTransition(response);
+      break;
+    }
+    case GAME_RESET:
+      resetGame();
+      activeState = ATTEMPTING;
       break;
     default:
-      activeState = ATTEMPTING;
+      activeState = GAME_RESET;
       break;
   }
 

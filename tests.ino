@@ -46,24 +46,23 @@ extern int T_COUNT;
 extern int T_STATE;
 
 DeviceState states[13] = { 
-  ATTEMPTING, 
-  WAITING_FOR_GAME,
-  INITIALIZE_GAME,
- 
-  WAITING_FOR_BALL,
-  BALL_SENSED,
+  /* 1 */  ATTEMPTING,  
+  /* 2 */  WAITING_FOR_GAME,
+  /* 3 */  INITIALIZE_GAME,
+
+  /* 4 */  WAITING_FOR_BALL,
+  /* 5 */  BALL_SENSED,
+  /* 6 */  UPDATE_COVERAGE,
+  /* 7 */  SEND_UPDATE,
   
-  UPDATE_COVERAGE,
-  SEND_UPDATE,
+  /* 9 */  GAME_WIN,
+  /* 10 */ GAME_LOSS,
+  /* 11 */ GAME_END,
 
-  GAME_TIE,
-  GAME_WIN,
-  GAME_LOSS,
-
-  GAME_END,
-
-  SEND_HEARTBEAT,
-  HOLE_LOCKOUT
+  /* 12 */ HOLE_LOCKOUT,
+  /* 13 */ SEND_HEARTBEAT,
+  
+  /* 14 */ GAME_RESET,
 };
 
 bool testTransition(int startState, int endState) {

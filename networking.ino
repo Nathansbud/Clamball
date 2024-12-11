@@ -90,7 +90,7 @@ ResponseType checkShouldStart() {
 int sendHoleUpdate(uint8_t cabinetID, uint8_t index) {
   Serial.print("Index: ");
   Serial.println(index);
-  return sendHoleUpdate(cabinetID, index / 5, index % 5);
+  return networked ? sendHoleUpdate(cabinetID, index / 5, index % 5) : -1;
 }
 
 int sendHoleUpdate(uint8_t cabinetID, uint8_t row, uint8_t col) {
