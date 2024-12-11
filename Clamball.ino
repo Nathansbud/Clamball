@@ -224,15 +224,7 @@ void petWDT() {
 void setup() {  
   Serial.begin(115200);
 
-  //check if wdt caused a reset:
-  if (R_WDT->WDTSR & 0x01) {  //0x01 is the timeout flag WDTSR register
-    // Log the watchdog timeout event
-    Serial.println("Watchdog timeout occurred. Restarting the game...");
-    // Clear the watchdog timeout flag
-    R_WDT->WDTSR = 0;
-    //Reset the game or reset the server??
-    //in theory would reset here...
-  }
+  setupWdt();
   
   // Put each digital pin into INPUT_PULLUP, so we can get away with fewer wires on our buttons
   for(int i = 0; i < NUM_BUTTONS; i++) {
