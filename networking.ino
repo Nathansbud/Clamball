@@ -158,8 +158,8 @@ int sendHeartbeat() {
       totalElapsed += wdtInterval;
 
       if (totalElapsed >= totalInterval){
-        //trigger wdt!! reset here... its been hanging too long
-
+        //trigger wdt!! reset here bc its been hanging too long
+        activeState = GAME_RESET;
       }
     }
   }
