@@ -204,23 +204,6 @@ void initializeSensors() {
   }
 }
 
-void initWDT() {
-  R_WDT->WDTCR = (0b10 | (0b1111 << 4) | (0b11 << 8) | (0b11 << 12)); //set this time according to 
-  //increase TOPS to maximum timtout duration (0b1111)
-  R_WDT->WDTSR = 0; // clear watchdog status
-
-  //data sheet pg. 580
-  //timeout period = (prescalar * timeout count) / clock frequency --> not exactly sure on math
-}
-
-
-/* pet the watchdog */
-/*pet dont kick :)*/
-void petWDT() {
-  R_WDT->WDTRR = 0;
-  R_WDT->WDTRR = 0xff;
-}
-
 void setup() {  
   Serial.begin(115200);
 

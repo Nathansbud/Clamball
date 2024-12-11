@@ -10,7 +10,8 @@ int status = WL_IDLE_STATUS;
 WiFiClient manager;
 HttpClient client = HttpClient(manager, server, port);
 
-/wdt:
+//wdt:
+//wdt credit: https://github.com/nadavmatalon/WatchDog/blob/master/examples/WatchDog_Uno_Example/WatchDog_Uno_Example.ino
 const long wdtInterval = 5000;
 unsigned long wdtMillis = 0;
 //desired total interval: 2 minutes which is 120000ms
