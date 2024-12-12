@@ -378,24 +378,26 @@ void manageFSM() {
       break;
     case SEND_UPDATE: {
       int response = sendHoleUpdate(CABINET_NUMBER, activeHole);
-    
+      
       DEBUG_PRINT("Got response after sending hole: ");
       DEBUG_PRINTLN(response);
 
-      // We are now "locked out", which means we should be placed into HOLE_LOCKOUT until further notice...eventually
-      refreshLockoutPattern(); 
-      LOCKED_OUT = true;
+      // The game has not ended!
+      if(response == -1) {
+        // We are now "locked out", which means we should be placed into HOLE_LOCKOUT until further notice...eventually
+        refreshLockoutPattern(); 
+        LOCKED_OUT = true;
 
+        // Reset hole metadata!
+        activeHole = -1;
+        activeRow = -1;
+    
+        // Update all sensors to have cleared values
+        initializeSensors();
+      }
+      
       // This state transition is guaranteed to leave SEND_UPDATE;
-      // it takes either to WAITING_FOR_HOLE (no winner), GAME_WIN/GAME_LOSS (winner), or ATTEMPTING (server error) 
-
-      // Reset hole metadata!
-      activeHole = -1;
-      activeRow = -1;
-  
-      // Update all sensors to have cleared values
-      initializeSensors();
-
+      // it moves either to WAITING_FOR_HOLE (no winner), GAME_WIN/GAME_LOSS (winner), or GAME_RESET (server error) 
       activeState = checkWinnerTransition(response);
       break;
     }
@@ -444,6 +446,8 @@ void manageFSM() {
       DEBUG_PRINT(millis() - timeStart);
       DEBUG_PRINTLN(" ms");
 
+      // This state transition is guaranteed to leave SEND_UPDATE;
+      // it moves either to WAITING_FOR_HOLE (no winner), GAME_WIN/GAME_LOSS (winner), or GAME_RESET (server error) 
       activeState = checkWinnerTransition(response);
       break;
     }
