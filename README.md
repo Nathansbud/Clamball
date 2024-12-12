@@ -1,7 +1,11 @@
 # Clamball
 Repository for mini version of Fascination created for CSCI 1600
 
-Hi guys
+Instructions for running:
+- run the server - "python server.py"
+- wait for connection from both cabinets
+- select relevant option ("2" to run the game)
 
-hi
+Instructions for testing:
+- 
 

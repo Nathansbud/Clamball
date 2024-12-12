@@ -1,4 +1,5 @@
 #include "network_config.h" 
+#include <wdt.h>
   
 char ssid[] = NETWORK_SSID;
 char pass[] = NETWORK_PASS;
@@ -8,6 +9,14 @@ int status = WL_IDLE_STATUS;
 
 WiFiClient manager;
 HttpClient client = HttpClient(manager, server, port);
+
+//wdt:
+//wdt credit: https://github.com/nadavmatalon/WatchDog/blob/master/examples/WatchDog_Uno_Example/WatchDog_Uno_Example.ino
+const long wdtInterval = 5000;
+unsigned long wdtMillis = 0;
+//desired total interval: 2 minutes which is 120000ms
+const long totalInterval = 120000;
+unsigned long totalElapsed = 0;
 
 void setupWifi() {
   if (WiFi.status() == WL_NO_MODULE) {
@@ -68,6 +77,15 @@ void setupServer() {
   #endif
 }
 
+void setupWdt() {
+  if(WDT.begin(wdtInterval)){
+    WDT.refresh();
+  }
+  else{
+    while(1){} //error initializing wdt
+  }
+}
+
 ResponseType checkShouldStart() {
   #ifndef TESTING
   if(manager.connect(server, port) == 1) {
@@ -122,11 +140,29 @@ int checkWinner(String content) {
 }
 
 int sendHeartbeat() {
+  //put wdt here, code will hang when not 
+  //maybe loop the wdt and if timer expires, reset the system...
   #ifndef TESTING
+
   if(manager.connect(server, port) == 1) { 
+    WDT.refresh();
+    totalElapsed = 0; //reset total elapsed
     client.get("/heartbeat");
-    
+
     return checkWinner(client.responseBody());
+  }
+  else {
+    if(millis() - wdtMillis >= wdtInterval - 1) {
+      WDT.refresh();
+      wdtMillis = millis();
+
+      totalElapsed += wdtInterval;
+
+      if (totalElapsed >= totalInterval){
+        //trigger wdt!! reset here bc its been hanging too long
+        activeState = GAME_RESET;
+      }
+    }
   }
 
   return -2;
