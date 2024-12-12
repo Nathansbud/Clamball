@@ -13,7 +13,7 @@ bool networked = false;
 
 // Defines the running average window size each sensor uses
 const int NUM_SENSORS = 5;
-const int SENSOR_WINDOW = 8;
+const int SENSOR_WINDOW = 15;
 const int SENSOR_DEFAULT = 30;
 
 const int TOTAL_INDEX = SENSOR_WINDOW;
@@ -172,7 +172,7 @@ void displayMessage(char message[], int textScrollSpeed) {
 void resetGame() {
   activeRow = -1;
   activeHole = -1;
-  HEARTBEAT_COUNT = 0;
+  HEARTBEAT_COUNT = 1;
 
   LOCKOUT_COUNT = 0;
   LOCKOUT_SWAP = false;
