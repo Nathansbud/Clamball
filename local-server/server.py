@@ -24,6 +24,16 @@ WIN_LOCK = threading.Lock()
 GAME_STARTED = False
 WINNER = None
 
+# comment or uncomment as needed
+# TESTING = False
+TESTING = True
+
+T_RESPOND_STATUS = -1 # status
+T_RESPOND_CONTENT = "" # content 
+T_CABINET = -1 
+T_ROW = -1 
+T_COL = -1
+T_POLL = None
 
 def request_url(endpoint):
     return f"http://{ADDRESS}:{PORT}/{endpoint}"
@@ -126,19 +136,23 @@ class RequestHandler(SimpleHTTPRequestHandler):
             self.fallback()
         
     def respond(self, status, content=None):
-        c = (content if content else "").encode('utf-8')
-        c_len = len(c)
+        if not TESTING:
+            c = (content if content else "").encode('utf-8')
+            c_len = len(c)
+                
+            self.send_response(status)
+            self.send_header("Content-Type", "text/plain")
             
-        self.send_response(status)
-        self.send_header("Content-Type", "text/plain")
-        
-        if c_len: self.send_header("Content-Length", c_len)
-        
-        # Arduino cannot construct a new http connection every time it needs to process a response
-        # self.send_header("Connection", "keep-alive")
+            if c_len: self.send_header("Content-Length", c_len)
+            
+            # Arduino cannot construct a new http connection every time it needs to process a response
+            # self.send_header("Connection", "keep-alive")
 
-        self.end_headers()
-        if c_len: self.wfile.write(c)
+            self.end_headers()
+            if c_len: self.wfile.write(c)
+        else:
+            T_RESPOND_STATUS = status
+            T_RESPOND_CONTENT = content
 
     def fallback(self):
         print("Attempting to handle fallback...")
@@ -171,23 +185,45 @@ class RequestHandler(SimpleHTTPRequestHandler):
 
     def handle_hole_update(self):
         global WINNER
+        if not TESTING:
+            msg_length = self.headers.get("Content-Length", "") or 0
+            if msg_length != 3:
+                body = self.rfile.read(int(msg_length)).decode()
+                _cabinet, _idx = body.split("-")
+                
+                print(f"Raw: {body}")
 
-        msg_length = self.headers.get("Content-Length", "") or 0
-        if msg_length != 3:
-            body = self.rfile.read(int(msg_length)).decode()
-            _cabinet, _idx = body.split("-")
-            
-            print(f"Raw: {body}")
+                cabinet, row, col = (int(v) for v in (_cabinet, _idx[0], _idx[1]))
+                print(f"Received: {cabinet} @ ({row}, {col})")
 
-            cabinet, row, col = (int(v) for v in (_cabinet, _idx[0], _idx[1]))
-            print(f"Received: {cabinet} @ ({row}, {col})")
 
+                if cabinet not in ACTIVE_CABINETS:
+                    self.respond(401, "Invalid cabinet")
+                else:                
+                    ACTIVE_CABINETS[cabinet].update_hole(row, col)
+                    WIN_LOCK.acquire()
+                    
+                    if WINNER is not None:
+                        self.respond(200, f"W{WINNER}")
+                    elif ACTIVE_CABINETS[cabinet].did_win(row, col, ACTIVE_PATTERN):
+                        WINNER = cabinet
+                        self.respond(200, f"W{cabinet}")
+                    else:
+                        self.respond(200, "N")
+
+                    WIN_LOCK.release()
+                    
+            else:
+                self.respond(400)
+        else: 
+            cabinet = T_CABINET
+            row = T_ROW
+            col = T_COL
 
             if cabinet not in ACTIVE_CABINETS:
                 self.respond(401, "Invalid cabinet")
             else:                
                 ACTIVE_CABINETS[cabinet].update_hole(row, col)
-                WIN_LOCK.acquire()
                 
                 if WINNER is not None:
                     self.respond(200, f"W{WINNER}")
@@ -196,11 +232,6 @@ class RequestHandler(SimpleHTTPRequestHandler):
                     self.respond(200, f"W{cabinet}")
                 else:
                     self.respond(200, "N")
-
-                WIN_LOCK.release()
-                
-        else:
-            self.respond(400)
 
     def sendHeartbeat(self):
         if WINNER is not None:
@@ -225,22 +256,25 @@ def repl_loop():
     global GAME_STARTED, NEXT_CABINET, WINNER, ACTIVE_PATTERN
 
     def poll(options):
-        while True:
-            for i, c in enumerate(options, start=1):
-                    print(f"{bold(i)}. {c}")
-    
-            inp = input("> ")   
-            try: 
-                choice = int(inp)
-                idx = choice - 1
-                
-                if not ((0 <= idx <= len(options) - 1) or choice == -1):
-                    raise ValueError()
-                
-                return idx if choice != -1 else None
-            except:
-                print(f"Invalid choice (must be between {bold('1')} and {bold(len(options))})!")
-                continue        
+        if not TESTING:
+            while True:
+                for i, c in enumerate(options, start=1):
+                        print(f"{bold(i)}. {c}")
+        
+                inp = input("> ")   
+                try: 
+                    choice = int(inp)
+                    idx = choice - 1
+                    
+                    if not ((0 <= idx <= len(options) - 1) or choice == -1):
+                        raise ValueError()
+                    
+                    return idx if choice != -1 else None
+                except:
+                    print(f"Invalid choice (must be between {bold('1')} and {bold(len(options))})!")
+                    continue
+        else:
+            return T_POLL
 
     while True:
         choice = poll([m.value for m in L_MainMenuChoices])
