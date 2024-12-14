@@ -1,5 +1,5 @@
 #include "network_config.h" 
-#include <wdt.h>
+// #include "wdt.h"
   
 char ssid[] = NETWORK_SSID;
 char pass[] = NETWORK_PASS;
@@ -42,9 +42,7 @@ void setupWifi() {
 }
 
 void setupServer() {
-  #ifdef TESTING
-  CABINET_NUMBER = T_CABINET_NUMBER;
-  #else
+  #ifndef TESTING:
   Serial.println("\nStarting connection to server...");
   // if you get a connection, report back via serial:)
   
@@ -70,19 +68,21 @@ void setupServer() {
     Serial.print(",  code: ");
     Serial.println(response);
   }
-
   delay(1000);
+  #else 
+  CABINET_NUMBER = T_CABINET_NUMBER_B;
+  T_CABINET_NUMBER_A = CABINET_NUMBER;
   #endif
 }
 
-void setupWdt() {
-  if(WDT.begin(wdtInterval)){
-    WDT.refresh();
-  }
-  else{
-    while(1){} //error initializing wdt
-  }
-}
+// void setupWdt() {
+//   if(WDT.begin(wdtInterval)){
+//     WDT.refresh();
+//   }
+//   else{
+//     while(1){} //error initializing wdt
+//   }
+// }
 
 ResponseType checkShouldStart() {
   #ifndef TESTING
@@ -104,12 +104,17 @@ ResponseType checkShouldStart() {
 }
 
 int sendHoleUpdate(uint8_t cabinetID, uint8_t index) {
+  #ifndef TESTING
   Serial.print("Index: ");
   Serial.println(index);
+  #endif
   return networked ? sendHoleUpdate(cabinetID, index / 5, index % 5) : -1;
 }
 
 int sendHoleUpdate(uint8_t cabinetID, uint8_t row, uint8_t col) {
+  #ifdef TESTING
+  return T_RESPONSE_HU;
+  #endif
   if(manager.connect(server, port) == 1) {
     Serial.print("Sending hole update: ");
     Serial.print(row);
@@ -143,7 +148,7 @@ int sendHeartbeat() {
   #ifndef TESTING
 
   if(manager.connect(server, port) == 1) { 
-    WDT.refresh();
+    // WDT.refresh();
     totalElapsed = 0; //reset total elapsed
     client.get("/heartbeat");
 
@@ -151,7 +156,7 @@ int sendHeartbeat() {
   }
   else {
     if(millis() - wdtMillis >= wdtInterval - 1) {
-      WDT.refresh();
+      // WDT.refresh();
       wdtMillis = millis();
 
       totalElapsed += wdtInterval;
@@ -165,7 +170,7 @@ int sendHeartbeat() {
 
   return -2;
   #else
-  return -1;
+  return T_RESPONSE_HB;
   #endif
 }
 

@@ -1,14 +1,14 @@
 #include "ArduinoGraphics.h"
 #include "Arduino_LED_Matrix.h"
 
-#define DEBUGGING true
+#define DEBUGGING false
 #define DEBUG_PRINT(A) (DEBUGGING ? Serial.print(A) : NULL)
 #define DEBUG_PRINTLN(A) (DEBUGGING ? Serial.println(A) : NULL)
 
 #define LOCKOUT_PIN 3
 
 /* UNCOMMENT ME TO TEST FSM! */
-// #define TESTING
+#define TESTING
 bool networked = false;
 
 // Defines the running average window size each sensor uses
@@ -69,6 +69,22 @@ enum DeviceState {
   
   /* 14 */ GAME_RESET,
 };
+
+int T_CABINET_NUMBER_B;
+int T_CABINET_NUMBER_A;
+int T_START;
+bool T_LOCKED_OUT;
+int T_ACTIVE_ROW;
+int T_HEARTBEAT_COUNTER;
+int T_HEARTBEAT_COUNTER_A;
+int T_RESPONSE_HU;
+bool T_LOCKED_OUT_A;
+int T_ACTIVE_ROW_A;
+bool T_CHECK_HEARTBEAT;
+int T_LOCKOUT_COUNTER;
+int T_LOCKOUT_COUNTER_A;
+int T_RESPONSE_HB;
+DeviceState T_STATE_DS;
 
 DeviceState activeState = networked ? ATTEMPTING : INITIALIZE_GAME;
 ArduinoLEDMatrix matrix;
@@ -207,7 +223,7 @@ void initializeSensors() {
 void setup() {  
   Serial.begin(115200);
 
-  setupWdt();
+  // setupWdt();
   
   // Put each digital pin into INPUT_PULLUP, so we can get away with fewer wires on our buttons
   for(int i = 0; i < NUM_BUTTONS; i++) {
@@ -251,14 +267,29 @@ DeviceState checkWinnerTransition(int response) {
 
 bool checkHeartbeat() {
   HEARTBEAT_COUNT = (HEARTBEAT_COUNT + 1) % HEARTBEAT_THRESHOLD;
+  #ifdef TESTING
+  T_HEARTBEAT_COUNTER_A = HEARTBEAT_COUNT;
+  return T_CHECK_HEARTBEAT;
+  #else
   return networked && HEARTBEAT_COUNT == 0;
+  #endif
 }
 
 void manageFSM() {
   static int candidateHole = -1;
+  bool hitDetected = false;
   
   #ifdef TESTING
-  activeState = T_STATE;
+  activeState = T_STATE_DS;
+  activeRow = T_ACTIVE_ROW;
+  if (activeRow != -1) {
+    hitDetected = true;
+  }
+  HEARTBEAT_COUNT = T_HEARTBEAT_COUNTER;
+  LOCKOUT_COUNT = T_LOCKOUT_COUNTER;
+  CABINET_NUMBER = T_CABINET_NUMBER_B;
+  LOCKED_OUT = T_LOCKED_OUT;
+
   #endif
 
   switch(activeState) {
@@ -303,16 +334,15 @@ void manageFSM() {
         activeState = HOLE_LOCKOUT;
         break;
       }
-
+      #ifndef TESTING
       // The polling logic of waiting for ball is to be constantly polling our IR sensors; 
       // they are finicky, we don't actually consider a reading on them gospel. Instead, we keep a running average of their readings
       updateSensorAverages(); // TODO: Update averages
 
       // Check for any inputs on our push buttons; these mean a guaranteed hit has occurred!
-      bool hitDetected = false;
       for(int i = 0; i < NUM_BUTTONS; i++)  {
         int usePin = i != 3 ? i : i + 10;
-        
+
         // Each of our pins are on pullup, so a 0 reading is a hit!
         if(digitalRead(usePin) == 0) {
           // Each button sensing plate has 2 buttons on it, wired on pins [0, 1], [2, 3], ..., [8, 9].
@@ -321,6 +351,7 @@ void manageFSM() {
           break;
         }
       }
+      #endif
 
       if(hitDetected) { 
         activeState = BALL_SENSED;
@@ -353,6 +384,9 @@ void manageFSM() {
       break;
     case SEND_UPDATE: {
       int response = sendHoleUpdate(CABINET_NUMBER, activeHole);
+      #ifdef TESTING
+      response = T_RESPONSE_HU;
+      #endif
       
       DEBUG_PRINT("Got response after sending hole: ");
       DEBUG_PRINTLN(response);
@@ -377,15 +411,19 @@ void manageFSM() {
       break;
     }
     case GAME_WIN:
+      #ifndef TESTING
       for(int i = 0; i < TEXT_CYCLE_COUNT; i++) {
         displayMessage("winner, winner, chicken dinner!", 150);
       }
+      #endif
       activeState = GAME_END;
       break;
     case GAME_LOSS:
+      #ifndef TESTING
       for(int i = 0; i < TEXT_CYCLE_COUNT; i++) {
         displayMessage("loser, loser, lemon snoozer!", 150);
       }
+      #endif
       activeState = GAME_END;
       break;
     case GAME_END:
@@ -436,7 +474,7 @@ void manageFSM() {
   }
 
   #ifdef TESTING
-  T_STATE = activeState;
+  T_STATE_DS = activeState;
   #endif
 }
 
