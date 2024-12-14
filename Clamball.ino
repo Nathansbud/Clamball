@@ -494,9 +494,17 @@ void updateSensorAverages() {
   for(int i = 0; i < NUM_SENSORS; i++) {
     int pin = A0 + i;
 
+    // Reference: https://www.instructables.com/How-to-Use-the-Sharp-IR-Sensor-GP2Y0A41SK0F-Arduin/;
     float sensorRead = analogRead(pin) * 0.0048828125;
     float sensorDistance = 13 * pow(sensorRead, -1);
-    
+
+    // Post-demo, post-having the energy to spend any more time on this project note:
+    // Wonder if the inaccuracy we ultimately faced was because this referenced code just seems to go for a "fuck it, we ball" 
+    // approach to reading the sensors, and because we referenced this code during prototyping, we never interrogated our
+    // sensor readings as the source of our strife. See https://github.com/guillaume-rico/SharpIR/blob/master/SharpIR.cpp for 
+    // an example of more "robust" processing. Maybe the answer was to just use this library all along, as "13" might have been
+    // an approximation of 12.08 * 1.058 = 12.78...we may never know.
+
     // Failsafe to prevent nans from propagating; sometimes our readings are just infinite,
     // and we aren't certain why
     if(isnan(sensorDistance) || isinf(sensorDistance)) {
