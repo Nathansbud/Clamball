@@ -85,6 +85,10 @@ int T_LOCKOUT_COUNTER;
 int T_LOCKOUT_COUNTER_A;
 int T_RESPONSE_HB;
 DeviceState T_STATE_DS;
+int T_WATCHDOG; 
+int T_MILLIS;
+int T_WDT_MILLIS;
+int T_TOT_ELAPSED;
 
 DeviceState activeState = networked ? ATTEMPTING : INITIALIZE_GAME;
 ArduinoLEDMatrix matrix;

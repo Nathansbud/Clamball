@@ -98,6 +98,20 @@ int testAfter[27][5] = {
   {0, 1, false, -1, 0},
 };
 
+int wdtTest[4][4] = {
+  {0, 6000, 3000, 0},
+  {0, 7000, 1000, 0},
+  {0, 7000, 1000, 115000},
+  {1, 7000, 1000, 6000},
+};
+
+int wdtAfter[4][3] = {
+  {3000, 0, 13},
+  {7000, 5000, 13},
+  {7000, 120000, 14},
+  {1000, 0, 13},
+};
+
 DeviceState states[13] = { 
   /* 1 */  ATTEMPTING,  //0
   /* 2 */  WAITING_FOR_GAME, //1
@@ -143,14 +157,31 @@ bool testTransition(int startState, int endState) {
   return passedTest;
 }
 
-const int numTests = 27;
+bool testWDT(int testNum) {
+  sendHeartbeat();
+  int endState = wdtAfter[testNum][2];
+  if (endState <=7) {
+    endState -= 1;
+  } else {
+    endState -= 2;
+  } 
+  bool passedTest = (
+    T_WDT_MILLIS == wdtAfter[testNum][0] and 
+    T_TOT_ELAPSED == wdtAfter[testNum][1] and
+    T_STATE_DS == states[endState]
+  );
+  return passedTest;
+}
+
+const int numFSMTests = 27;
+const int numWDTTests = 4;
 
 /*
  * Runs through all the test cases defined above
  */
 extern bool testAllTests() {
-  for (int i = 0; i < numTests; i++) {
-    Serial.print("Running test ");
+  for (int i = 0; i < numFSMTests; i++) {
+    Serial.print("Running FSM test ");
     Serial.print(i);
     T_CABINET_NUMBER_B = testData[i][2];
     T_CABINET_NUMBER_A = testAfter[i][0]; 
@@ -174,6 +205,25 @@ extern bool testAllTests() {
     }
     Serial.println();
   }
+
+  for (int j = 0; j < numWDTTests; j++) {
+    Serial.print("Running WDT test ");
+    Serial.print(j);
+    // var sets go here
+    T_WATCHDOG = wdtTest[j][0];
+    T_MILLIS = wdtTest[j][1];
+    T_WDT_MILLIS = wdtTest[j][2];
+    T_TOT_ELAPSED = wdtTest[j][3];
+    T_STATE_DS = SEND_HEARTBEAT;
+    if (!testWDT(j)) {
+      Serial.print(": FAILED ");
+      return false;
+    } else {
+      Serial.print(": PASSED ");
+    }
+    Serial.println();
+  } 
+
   Serial.println("All tests passed!");
   return true;
 }
