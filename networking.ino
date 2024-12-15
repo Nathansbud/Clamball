@@ -1,5 +1,5 @@
 #include "network_config.h" 
-// #include "wdt.h"
+#include "WDT.h"
   
 char ssid[] = NETWORK_SSID;
 char pass[] = NETWORK_PASS;
@@ -75,14 +75,14 @@ void setupServer() {
   #endif
 }
 
-// void setupWdt() {
-//   if(WDT.begin(wdtInterval)){
-//     WDT.refresh();
-//   }
-//   else{
-//     while(1){} //error initializing wdt
-//   }
-// }
+void setupWdt() {
+  if(WDT.begin(wdtInterval)){
+    WDT.refresh();
+  }
+  else{
+    while(1){} //error initializing wdt
+  }
+}
 
 ResponseType checkShouldStart() {
   #ifndef TESTING
@@ -148,7 +148,7 @@ int sendHeartbeat() {
   #ifndef TESTING
 
   if(manager.connect(server, port) == 1) { 
-    // WDT.refresh();
+    WDT.refresh();
     totalElapsed = 0; //reset total elapsed
     client.get("/heartbeat");
 
@@ -156,7 +156,7 @@ int sendHeartbeat() {
   }
   else {
     if(millis() - wdtMillis >= wdtInterval - 1) {
-      // WDT.refresh();
+      WDT.refresh();
       wdtMillis = millis();
 
       totalElapsed += wdtInterval;

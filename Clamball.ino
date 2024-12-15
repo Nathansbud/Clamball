@@ -223,7 +223,7 @@ void initializeSensors() {
 void setup() {  
   Serial.begin(115200);
 
-  // setupWdt();
+  setupWdt();
   
   // Put each digital pin into INPUT_PULLUP, so we can get away with fewer wires on our buttons
   for(int i = 0; i < NUM_BUTTONS; i++) {
