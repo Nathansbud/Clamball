@@ -8,7 +8,7 @@ from utils import *
 
 # If running local, we are testing requests/responses from our mock client; 
 # if not, we are processing incoming requests from Arduino
-LOCAL = True
+LOCAL = False
 SURPRESS_SYSTEM_LOGS = False
 SURPRESS_SERVER_LOGS = False
 
@@ -26,7 +26,7 @@ WINNER = None
 
 # comment or uncomment as needed
 # TESTING = False
-TESTING = True
+TESTING = False
 
 T_RESPOND_STATUS = -1 # status
 T_RESPOND_CONTENT = "" # content 

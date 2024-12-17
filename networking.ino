@@ -10,14 +10,6 @@ int status = WL_IDLE_STATUS;
 WiFiClient manager;
 HttpClient client = HttpClient(manager, server, port);
 
-//wdt:
-//wdt credit: https://github.com/nadavmatalon/WatchDog/blob/master/examples/WatchDog_Uno_Example/WatchDog_Uno_Example.ino
-const long wdtInterval = 5000;
-unsigned long wdtMillis = 0;
-//desired total interval: 2 minutes which is 120000ms
-const long totalInterval = 120000;
-unsigned long totalElapsed = 0;
-
 void setupWifi() {
   if (WiFi.status() == WL_NO_MODULE) {
     Serial.println("Communication with WiFi module failed!");
@@ -35,10 +27,11 @@ void setupWifi() {
       Serial.println(ssid);
       status = WiFi.begin(ssid);
     }
-     
-    // wait 2.5 seconds for re-connect attempt:
+    
     delay(2500);
   }
+  
+  Serial.println("Successfully connected!");
 }
 
 void setupServer() {
@@ -76,11 +69,13 @@ void setupServer() {
 }
 
 void setupWdt() {
-  if(WDT.begin(wdtInterval)){
+  if(WDT.begin(wdtInterval)) {
     WDT.refresh();
-  }
-  else{
-    while(1){} //error initializing wdt
+  } else {
+    //error initializing wdt
+    while(1) { 
+      Serial.println("Failed to initilalize WDT"); 
+    }
   }
 }
 
@@ -88,15 +83,15 @@ ResponseType checkShouldStart() {
   #ifndef TESTING
   if(manager.connect(server, port) == 1) {
     client.get("/request-start");
-    
+
     int statusCode = client.responseStatusCode();
     if(statusCode == 200 && client.responseBody() == "Y") { 
       return SUCCESS;
     }
 
     return FAILURE;
-  }
-  
+  } 
+
   return ERROR;
   #else
   return T_START == 1 ? SUCCESS : FAILURE;
@@ -108,13 +103,18 @@ int sendHoleUpdate(uint8_t cabinetID, uint8_t index) {
   Serial.print("Index: ");
   Serial.println(index);
   #endif
-  return networked ? sendHoleUpdate(cabinetID, index / 5, index % 5) : -1;
+  return sendHoleUpdate(cabinetID, index / 5, index % 5);
 }
 
 int sendHoleUpdate(uint8_t cabinetID, uint8_t row, uint8_t col) {
   #ifdef TESTING
   return T_RESPONSE_HU;
   #endif
+  
+  if(!networked) { 
+    return -1; 
+  }
+
   if(manager.connect(server, port) == 1) {
     Serial.print("Sending hole update: ");
     Serial.print(row);
@@ -142,62 +142,46 @@ int checkWinner(String content) {
   }
 }
 
-#ifndef TESTING
 int sendHeartbeat() {
-  //put wdt here, code will hang when not 
-  //maybe loop the wdt and if timer expires, reset the system...
-  if(manager.connect(server, port) == 1) { 
-    WDT.refresh();
-    totalElapsed = 0; //reset total elapsed
-    client.get("/heartbeat");
-
-    return checkWinner(client.responseBody());
-  }
-  else {
-    if(millis() - wdtMillis >= wdtInterval - 1) {
+  // Main mode of operation of this method
+  #ifndef TESTING
+    if(manager.connect(server, port) == 1) { 
+      client.get("/heartbeat");
+      return checkWinner(client.responseBody());
+    }
+    
+    return -2;
+  #else 
+    // Testing-specific, mocked out version
+    //put wdt here, code will hang when not 
+    //maybe loop the wdt and if timer expires, reset the system...
+    wdtMillis = T_WDT_MILLIS;
+    totalElapsed = T_TOT_ELAPSED;
+    activeState = T_STATE_DS;
+    if(T_WATCHDOG == 1) { 
       WDT.refresh();
-      wdtMillis = millis();
+      totalElapsed = 0; //reset total elapsed
+    }
+    else {
+      if(T_MILLIS - wdtMillis >= wdtInterval - 1) {
+        WDT.refresh();
+        wdtMillis = T_MILLIS;
 
-      totalElapsed += wdtInterval;
+        totalElapsed += wdtInterval;
 
-      if (totalElapsed >= totalInterval){
-        //trigger wdt!! reset here bc its been hanging too long
-        activeState = GAME_RESET;
+        if (totalElapsed >= totalInterval){
+          //trigger wdt!! reset here bc its been hanging too long
+          activeState = GAME_RESET;
+        }
       }
     }
-  }
-  return -2;
+    T_WDT_MILLIS = wdtMillis;
+    T_TOT_ELAPSED = totalElapsed; 
+    T_STATE_DS = activeState;
+    return T_RESPONSE_HB;
+  #endif
 }
-#else 
-int sendHeartbeat() {
-  //put wdt here, code will hang when not 
-  //maybe loop the wdt and if timer expires, reset the system...
-  wdtMillis = T_WDT_MILLIS;
-  totalElapsed = T_TOT_ELAPSED;
-  activeState = T_STATE_DS;
-  if(T_WATCHDOG == 1) { 
-    WDT.refresh();
-    totalElapsed = 0; //reset total elapsed
-  }
-  else {
-    if(T_MILLIS - wdtMillis >= wdtInterval - 1) {
-      WDT.refresh();
-      wdtMillis = T_MILLIS;
 
-      totalElapsed += wdtInterval;
-
-      if (totalElapsed >= totalInterval){
-        //trigger wdt!! reset here bc its been hanging too long
-        activeState = GAME_RESET;
-      }
-    }
-  }
-  T_WDT_MILLIS = wdtMillis;
-  T_TOT_ELAPSED = totalElapsed; 
-  T_STATE_DS = activeState;
-  return T_RESPONSE_HB;
-}
-#endif
 // Credit to https://forum.arduino.cc/t/finding-the-mac-address-of-the-arduino-uno-r4/1308027/
 // for MAC address snippets
 void printMacAddress(byte mac[]) {

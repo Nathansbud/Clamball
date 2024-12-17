@@ -1,15 +1,16 @@
 #include "ArduinoGraphics.h"
 #include "Arduino_LED_Matrix.h"
+#include "WDT.h"
 
-#define DEBUGGING false
+#define DEBUGGING true
 #define DEBUG_PRINT(A) (DEBUGGING ? Serial.print(A) : NULL)
 #define DEBUG_PRINTLN(A) (DEBUGGING ? Serial.println(A) : NULL)
 
 #define LOCKOUT_PIN 3
 
 /* UNCOMMENT ME TO TEST FSM! */
-#define TESTING
-bool networked = false;
+// #define TESTING
+bool networked = true;
 
 // Defines the running average window size each sensor uses
 const int NUM_SENSORS = 5;
@@ -210,7 +211,6 @@ void lockoutISR() {
   LOCKOUT_SWAP = false;
   LOCKED_OUT = false;
   toggleLockoutPattern(false);
-  // petWDT(); //also pet here when lockout is occuring?
 }
 
 void initializeSensors() {
@@ -226,7 +226,13 @@ void initializeSensors() {
 
 void setup() {  
   Serial.begin(115200);
-
+  
+  #ifndef TESTING
+  if(networked) {
+    setupWifi();
+  }
+  #endif
+  
   setupWdt();
   
   // Put each digital pin into INPUT_PULLUP, so we can get away with fewer wires on our buttons
@@ -246,10 +252,6 @@ void setup() {
   // which slows things down and requires actual integration w our server
   #ifdef TESTING
   testAllTests();
-  #else
-  if(networked) {
-    setupWifi();
-  }
   #endif
 
   matrix.begin();
@@ -279,11 +281,27 @@ bool checkHeartbeat() {
   #endif
 }
 
+
+// WDT Zone;
+// Credit: https://github.com/nadavmatalon/WatchDog/blob/master/examples/WatchDog_Uno_Example/WatchDog_Uno_Example.ino
+const long wdtInterval = 5000;
+unsigned long wdtMillis = 0;
+
+const long totalInterval = 120000; // 12000ms = 2 minutes
+unsigned long totalElapsed = 0;
+
+
 void manageFSM() {
   static int candidateHole = -1;
   bool hitDetected = false;
   
-  #ifdef TESTING
+  #ifndef TESTING
+  // Reset the timer on our watchdog at the top of each FSM loop; this isn't exceptional practice,
+  // but works as a broad stroke to catch that none of the network functions (setupServer, sendHoleUpdate, sendHeartbeat)
+  // hung during the last iteration; if they did, something is wrong with our server, and we should have reset
+  WDT.refresh();
+  totalElapsed = 0;
+  #else
   activeState = T_STATE_DS;
   activeRow = T_ACTIVE_ROW;
   if (activeRow != -1) {
@@ -293,7 +311,6 @@ void manageFSM() {
   LOCKOUT_COUNT = T_LOCKOUT_COUNTER;
   CABINET_NUMBER = T_CABINET_NUMBER_B;
   LOCKED_OUT = T_LOCKED_OUT;
-
   #endif
 
   switch(activeState) {
@@ -322,6 +339,7 @@ void manageFSM() {
           break;
         case ERROR:
         default:
+          DEBUG_PRINTLN("Erroring :(");
           break;
       }
       
@@ -338,6 +356,7 @@ void manageFSM() {
         activeState = HOLE_LOCKOUT;
         break;
       }
+      
       #ifndef TESTING
       // The polling logic of waiting for ball is to be constantly polling our IR sensors; 
       // they are finicky, we don't actually consider a reading on them gospel. Instead, we keep a running average of their readings
