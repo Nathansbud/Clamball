@@ -286,12 +286,6 @@ bool checkHeartbeat() {
 // Credit: https://github.com/nadavmatalon/WatchDog/blob/master/examples/WatchDog_Uno_Example/WatchDog_Uno_Example.ino
 const long wdtInterval = 5000;
 
-// TODO-Mikayla: This can all probably be removed :(
-unsigned long wdtMillis = 0;
-const long totalInterval = 120000; // 12000ms = 2 minutes
-unsigned long totalElapsed = 0;
-
-
 void manageFSM() {
   static int candidateHole = -1;
   bool hitDetected = false;
@@ -301,7 +295,6 @@ void manageFSM() {
   // but works as a broad stroke to catch that none of the network functions (setupServer, sendHoleUpdate, sendHeartbeat)
   // hung during the last iteration; if they did, something is wrong with our server, and we should have reset
   WDT.refresh();
-  totalElapsed = 0;
   #else
   activeState = T_STATE_DS;
   activeRow = T_ACTIVE_ROW;
@@ -437,7 +430,6 @@ void manageFSM() {
         displayMessage("winner, winner, chicken dinner!", 150);
         // This operation is quite slow and blocking; make sure to refresh the WDT just in case each loop
         WDT.refresh();
-        totalElapsed = 0;
       }
       #endif
       activeState = GAME_END;
@@ -448,7 +440,6 @@ void manageFSM() {
         displayMessage("loser, loser, lemon snoozer!", 150);
         // This operation is quite slow and blocking; make sure to refresh the WDT just in case each loop
         WDT.refresh();
-        totalElapsed = 0;
       }
       #endif
       activeState = GAME_END;
