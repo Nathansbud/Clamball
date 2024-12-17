@@ -9,8 +9,8 @@
 #define LOCKOUT_PIN 3
 
 /* UNCOMMENT ME TO TEST FSM! */
-#define TESTING
-bool networked = false;
+// #define TESTING
+bool networked = true;
 
 // Defines the running average window size each sensor uses
 const int NUM_SENSORS = 5;
