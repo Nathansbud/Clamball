@@ -7,5 +7,6 @@ Instructions for running:
 - select relevant option ("2" to run the game)
 
 Instructions for testing:
-- 
+- ensure TESTING is uncommented 
+- run as usual
 
