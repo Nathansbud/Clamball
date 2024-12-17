@@ -435,6 +435,9 @@ void manageFSM() {
       #ifndef TESTING
       for(int i = 0; i < TEXT_CYCLE_COUNT; i++) {
         displayMessage("winner, winner, chicken dinner!", 150);
+        // This operation is quite slow and blocking; make sure to refresh the WDT just in case each loop
+        WDT.refresh();
+        totalElapsed = 0;
       }
       #endif
       activeState = GAME_END;
@@ -443,6 +446,9 @@ void manageFSM() {
       #ifndef TESTING
       for(int i = 0; i < TEXT_CYCLE_COUNT; i++) {
         displayMessage("loser, loser, lemon snoozer!", 150);
+        // This operation is quite slow and blocking; make sure to refresh the WDT just in case each loop
+        WDT.refresh();
+        totalElapsed = 0;
       }
       #endif
       activeState = GAME_END;
