@@ -285,8 +285,9 @@ bool checkHeartbeat() {
 // WDT Zone;
 // Credit: https://github.com/nadavmatalon/WatchDog/blob/master/examples/WatchDog_Uno_Example/WatchDog_Uno_Example.ino
 const long wdtInterval = 5000;
-unsigned long wdtMillis = 0;
 
+// TODO-Mikayla: This can all probably be removed :(
+unsigned long wdtMillis = 0;
 const long totalInterval = 120000; // 12000ms = 2 minutes
 unsigned long totalElapsed = 0;
 
@@ -360,7 +361,7 @@ void manageFSM() {
       #ifndef TESTING
       // The polling logic of waiting for ball is to be constantly polling our IR sensors; 
       // they are finicky, we don't actually consider a reading on them gospel. Instead, we keep a running average of their readings
-      updateSensorAverages(); // TODO: Update averages
+      updateSensorAverages();
 
       // Check for any inputs on our push buttons; these mean a guaranteed hit has occurred!
       for(int i = 0; i < NUM_BUTTONS; i++)  {
@@ -386,9 +387,6 @@ void manageFSM() {
       break;
     }
     case BALL_SENSED: {
-      //pet the watchdog:
-      // petWDT();
-      
       // Compute the active column based on running averages maintained in WAITING_FOR_BALL
       int activeColumn = computeActiveColumn();
       activeHole = 5 * activeRow + activeColumn;
@@ -437,6 +435,9 @@ void manageFSM() {
       #ifndef TESTING
       for(int i = 0; i < TEXT_CYCLE_COUNT; i++) {
         displayMessage("winner, winner, chicken dinner!", 150);
+        // This operation is quite slow and blocking; make sure to refresh the WDT just in case each loop
+        WDT.refresh();
+        totalElapsed = 0;
       }
       #endif
       activeState = GAME_END;
@@ -445,6 +446,9 @@ void manageFSM() {
       #ifndef TESTING
       for(int i = 0; i < TEXT_CYCLE_COUNT; i++) {
         displayMessage("loser, loser, lemon snoozer!", 150);
+        // This operation is quite slow and blocking; make sure to refresh the WDT just in case each loop
+        WDT.refresh();
+        totalElapsed = 0;
       }
       #endif
       activeState = GAME_END;
