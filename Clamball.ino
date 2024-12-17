@@ -386,9 +386,6 @@ void manageFSM() {
       break;
     }
     case BALL_SENSED: {
-      //pet the watchdog:
-      // petWDT();
-      
       // Compute the active column based on running averages maintained in WAITING_FOR_BALL
       int activeColumn = computeActiveColumn();
       activeHole = 5 * activeRow + activeColumn;
