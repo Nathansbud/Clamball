@@ -9,8 +9,8 @@
 #define LOCKOUT_PIN 3
 
 /* UNCOMMENT ME TO TEST FSM! */
-// #define TESTING
-bool networked = true;
+#define TESTING
+bool networked = false;
 
 // Defines the running average window size each sensor uses
 const int NUM_SENSORS = 5;
@@ -71,6 +71,7 @@ enum DeviceState {
   /* 14 */ GAME_RESET,
 };
 
+// For testing:
 int T_CABINET_NUMBER_B;
 int T_CABINET_NUMBER_A;
 int T_START;
@@ -86,10 +87,10 @@ int T_LOCKOUT_COUNTER;
 int T_LOCKOUT_COUNTER_A;
 int T_RESPONSE_HB;
 DeviceState T_STATE_DS;
-int T_WATCHDOG; 
-int T_MILLIS;
-int T_WDT_MILLIS;
-int T_TOT_ELAPSED;
+// int T_WATCHDOG; 
+// int T_MILLIS;
+// int T_WDT_MILLIS;
+// int T_TOT_ELAPSED;
 
 DeviceState activeState = networked ? ATTEMPTING : INITIALIZE_GAME;
 ArduinoLEDMatrix matrix;
@@ -323,11 +324,11 @@ void manageFSM() {
       // without some sort of threading model that might necessitate an OS; as such, we use polling even in contexts where we'd
       // ideally have the server send a request to the client
       switch(checkShouldStart()) {
-        case SUCCESS:
+        case SUCCESS: // Transition: 2-3 [WAITING_FOR_GAME -> INITIALIZE_GAME]
           DEBUG_PRINTLN("Let the games...begin!");
           activeState = INITIALIZE_GAME;
           break;
-        case FAILURE:
+        case FAILURE: // Transition: 2-2 [WAITING_FOR_GAME -> WAITING_FOR_GAME]
           DEBUG_PRINTLN("Waiting for game...");
           activeState = WAITING_FOR_GAME;
           break;
@@ -342,11 +343,11 @@ void manageFSM() {
     case INITIALIZE_GAME:
       clearBoardState();
       matrix.loadFrame(boardState);
-      activeState = WAITING_FOR_BALL;
+      activeState = WAITING_FOR_BALL; // Transition: 3-4 [INITIALIZE_GAME -> WAITING_FOR_BALL]
       break;
     case WAITING_FOR_BALL: {
       // If we are currently in LOCKED_OUT mode, we should not actually be here; instead, place us in HOLE_LOCKOUT at the next transition
-      if(LOCKED_OUT) { 
+      if(LOCKED_OUT) { // Transition: 4-12 [WAITING_FOR_BALL -> HOLE_LOCKOUT]
         activeState = HOLE_LOCKOUT;
         break;
       }
@@ -370,11 +371,11 @@ void manageFSM() {
       }
       #endif
 
-      if(hitDetected) { 
+      if(hitDetected) { // Transition: 4-5 [WAITING_FOR_BALL -> BALL_SENSED]
         activeState = BALL_SENSED;
-      } else if(checkHeartbeat()) {
+      } else if(checkHeartbeat()) { // Transition: 4-13 [WAITING_FOR_BALL -> SEND_HEARTBEAT]
         activeState = SEND_HEARTBEAT;
-      } else {
+      } else { // Transition: 4-4 [WAITING_FOR_BALL -> WAITING_FOR_BALL]
         activeState = WAITING_FOR_BALL;
       }
       break;
@@ -389,12 +390,12 @@ void manageFSM() {
       DEBUG_PRINT(" - ");
       DEBUG_PRINTLN(activeColumn);
 
-      activeState = UPDATE_COVERAGE;
+      activeState = UPDATE_COVERAGE; // Transition: 5-6 [BALL_SENSED -> UPDATE_COVERAGE]
       break;
     }
     case UPDATE_COVERAGE:
       activateHole(activeHole);
-      activeState = SEND_UPDATE;
+      activeState = SEND_UPDATE; // Transition: 6-7 [UPDATE_COVERAGE -> SEND_UPDATE]
       break;
     case SEND_UPDATE: {
       int response = sendHoleUpdate(CABINET_NUMBER, activeHole);
@@ -420,8 +421,8 @@ void manageFSM() {
       }
       
       // This state transition is guaranteed to leave SEND_UPDATE;
-      // it moves either to WAITING_FOR_HOLE (no winner), GAME_WIN/GAME_LOSS (winner), or GAME_RESET (server error) 
-      activeState = checkWinnerTransition(response);
+      // it moves either to WAITING_FOR_BALL (no winner), GAME_WIN/GAME_LOSS (winner), or GAME_RESET (server error) 
+      activeState = checkWinnerTransition(response); // Transition: 7-4 [SEND_UPDATE -> WAITING_FOR_BALL], 7-9 [SEND_UPDATE -> GAME_WIN], 7-10 [SEND_UPDATE -> GAME_LOSS], 7-14 [SEND_UPDATE -> GAME_RESET]
       break;
     }
     case GAME_WIN:
@@ -432,7 +433,7 @@ void manageFSM() {
         WDT.refresh();
       }
       #endif
-      activeState = GAME_END;
+      activeState = GAME_END; // Transition: 9-11 [GAME_WIN -> GAME_END]
       break;
     case GAME_LOSS:
       #ifndef TESTING
@@ -442,10 +443,10 @@ void manageFSM() {
         WDT.refresh();
       }
       #endif
-      activeState = GAME_END;
+      activeState = GAME_END; // Transition: 10-11 [GAME_LOSS -> GAME_END]
       break;
     case GAME_END:
-      activeState = GAME_RESET;
+      activeState = GAME_RESET; // Transition: 11-14 [GAME_END -> GAME_RESET]
       break;
     case HOLE_LOCKOUT:
       if(!LOCKED_OUT) { // Transition: 12-4 [HOLE_LOCKOUT -> WAITING_FOR_BALL]
@@ -479,12 +480,12 @@ void manageFSM() {
 
       // This state transition is guaranteed to leave SEND_UPDATE;
       // it moves either to WAITING_FOR_HOLE (no winner), GAME_WIN/GAME_LOSS (winner), or GAME_RESET (server error) 
-      activeState = checkWinnerTransition(response);
+      activeState = checkWinnerTransition(response); // Transition: 13-4 [SEND_HEARTBEAT -> WAITING_FOR_BALL], 13-9 [SEND_HEARTBEAT -> GAME_WIN], 13-10 [SEND_HEARTBEAT -> GAME_LOSS], 13-14 [SEND_HEARTBEAT -> GAME_RESET]
       break;
     }
     case GAME_RESET:
       resetGame();
-      activeState = ATTEMPTING;
+      activeState = ATTEMPTING; // Transition: 14-1 [GAME_RESEST -> ATTEMPTING]
       break;
     default:
       activeState = GAME_RESET;

@@ -152,32 +152,6 @@ int sendHeartbeat() {
     
     return -2;
   #else 
-    // Testing-specific, mocked out version
-    //put wdt here, code will hang when not 
-    //maybe loop the wdt and if timer expires, reset the system...
-    wdtMillis = T_WDT_MILLIS;
-    totalElapsed = T_TOT_ELAPSED;
-    activeState = T_STATE_DS;
-    if(T_WATCHDOG == 1) { 
-      WDT.refresh();
-      totalElapsed = 0; //reset total elapsed
-    }
-    else {
-      if(T_MILLIS - wdtMillis >= wdtInterval - 1) {
-        WDT.refresh();
-        wdtMillis = T_MILLIS;
-
-        totalElapsed += wdtInterval;
-
-        if (totalElapsed >= totalInterval){
-          //trigger wdt!! reset here bc its been hanging too long
-          activeState = GAME_RESET;
-        }
-      }
-    }
-    T_WDT_MILLIS = wdtMillis;
-    T_TOT_ELAPSED = totalElapsed; 
-    T_STATE_DS = activeState;
     return T_RESPONSE_HB;
   #endif
 }

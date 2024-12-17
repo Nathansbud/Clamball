@@ -18,26 +18,6 @@
    - correct winner/loser is displayed 
 */
 
-// const char* csvTestData = "Test,Start,End,Cab#,start,hole_made,response,count\n0,1,1,-1,0,0,0,0\n1,1,2,0,0,0,0,0\n2,2,2,0,0,0,0,0\n3,2,3,0,1,0,0,0\n4,4,5,0,1,0,0,0\n5,4,9,0,1,-1,0,0\n6,4,10,0,1,-1,1,0\n7,4,4,0,1,-1,-1,0\n8,4,1,0,1,-1,-2,0\n9,5,6,0,1,0,0,10\n10,5,4,0,1,0,0,5\n11,7,9,0,1,0,0,0\n12,7,10,0,1,0,1,0\n13,7,4,0,1,0,-1,0\n14,7,1,0,1,0,-2,0"
-
-// int testData[15][8] = {
-//   {0, 1, 1, -1, 0, 0, 0, 0},
-//   {1, 1, 2, 0, 0, 0, 0, 0},
-//   {2, 2, 2, 0, 0, 0, 0, 0},
-//   {3, 2, 3, 0, 1, 0, 0, 0},
-//   {4, 4, 5, 0, 1, 0, 0, 0},
-//   {5, 4, 9, 0, 1, -1, 0, 0},
-//   {6, 4, 10, 0, 1, -1, 1, 0},
-//   {7, 4, 4, 0, 1, -1, -1, 0},
-//   {8, 4, 1, 0, 1, -1, -2, 0},
-//   {9, 5, 6, 0, 1, 0, 0, 10},
-//   {10, 5, 4, 0, 1, 0, 0, 5},
-//   {11, 7, 9, 0, 1, 0, 0, 0},
-//   {12, 7, 10, 0, 1, 0, 1, 0},
-//   {13, 7, 4, 0, 1, 0, -1, 0},
-//   {14, 7, 1, 0, 1, 0, -2, 0}
-// };
-// 1, 1, 
 int testData[27][11] = {
   /* 0 */ {1, 1, -1, 0, false, -1, 10, -1, false, 0, -1},
   /* 1 */ {1, 2, 0, 0, false, -1, 10, -1, false, 0, -1},
@@ -98,19 +78,19 @@ int testAfter[27][5] = {
   {0, 1, false, -1, 0},
 };
 
-int wdtTest[4][4] = {
-  {0, 6000, 3000, 0},
-  {0, 7000, 1000, 0},
-  {0, 7000, 1000, 115000},
-  {1, 7000, 1000, 6000},
-};
+// int wdtTest[4][4] = {
+//   {0, 6000, 3000, 0},
+//   {0, 7000, 1000, 0},
+//   {0, 7000, 1000, 115000},
+//   {1, 7000, 1000, 6000},
+// };
 
-int wdtAfter[4][3] = {
-  {3000, 0, 13},
-  {7000, 5000, 13},
-  {7000, 120000, 14},
-  {1000, 0, 13},
-};
+// int wdtAfter[4][3] = {
+//   {3000, 0, 13},
+//   {7000, 5000, 13},
+//   {7000, 120000, 14},
+//   {1000, 0, 13},
+// };
 
 DeviceState states[13] = { 
   /* 1 */  ATTEMPTING,  //0
@@ -157,24 +137,24 @@ bool testTransition(int startState, int endState) {
   return passedTest;
 }
 
-bool testWDT(int testNum) {
-  sendHeartbeat();
-  int endState = wdtAfter[testNum][2];
-  if (endState <=7) {
-    endState -= 1;
-  } else {
-    endState -= 2;
-  } 
-  bool passedTest = (
-    T_WDT_MILLIS == wdtAfter[testNum][0] and 
-    T_TOT_ELAPSED == wdtAfter[testNum][1] and
-    T_STATE_DS == states[endState]
-  );
-  return passedTest;
-}
+// bool testWDT(int testNum) {
+//   sendHeartbeat();
+//   int endState = wdtAfter[testNum][2];
+//   if (endState <=7) {
+//     endState -= 1;
+//   } else {
+//     endState -= 2;
+//   } 
+//   bool passedTest = (
+//     T_WDT_MILLIS == wdtAfter[testNum][0] and 
+//     T_TOT_ELAPSED == wdtAfter[testNum][1] and
+//     T_STATE_DS == states[endState]
+//   );
+//   return passedTest;
+// }
 
 const int numFSMTests = 27;
-const int numWDTTests = 4;
+// const int numWDTTests = 4;
 
 /*
  * Runs through all the test cases defined above
@@ -206,23 +186,24 @@ extern bool testAllTests() {
     Serial.println();
   }
 
-  for (int j = 0; j < numWDTTests; j++) {
-    Serial.print("Running WDT test ");
-    Serial.print(j);
-    // var sets go here
-    T_WATCHDOG = wdtTest[j][0];
-    T_MILLIS = wdtTest[j][1];
-    T_WDT_MILLIS = wdtTest[j][2];
-    T_TOT_ELAPSED = wdtTest[j][3];
-    T_STATE_DS = SEND_HEARTBEAT;
-    if (!testWDT(j)) {
-      Serial.print(": FAILED ");
-      return false;
-    } else {
-      Serial.print(": PASSED ");
-    }
-    Serial.println();
-  } 
+  // Note: we originally did our WDT in a way that we could unit test however when we pivoted these tests were no longer feasible
+  // for (int j = 0; j < numWDTTests; j++) {
+  //   Serial.print("Running WDT test ");
+  //   Serial.print(j);
+  //   // var sets go here
+  //   T_WATCHDOG = wdtTest[j][0];
+  //   T_MILLIS = wdtTest[j][1];
+  //   T_WDT_MILLIS = wdtTest[j][2];
+  //   T_TOT_ELAPSED = wdtTest[j][3];
+  //   T_STATE_DS = SEND_HEARTBEAT;
+  //   if (!testWDT(j)) {
+  //     Serial.print(": FAILED ");
+  //     return false;
+  //   } else {
+  //     Serial.print(": PASSED ");
+  //   }
+  //   Serial.println();
+  // } 
 
   Serial.println("All tests passed!");
   return true;
